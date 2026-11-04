@@ -1,0 +1,70 @@
+/* Navigation tabs and the help requests screen.
+   Colors come from the variables defined in styles.css (light and dark). */
+
+.nav { display: flex; gap: 8px; margin-bottom: 20px; }
+
+.nav-tab {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.nav-tab:hover { border-color: var(--primary); }
+.nav-tab-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.nav-count {
+  background: var(--broken);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+.nav-tab-on .nav-count { background: #fff; color: var(--broken); }
+
+.help-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.help-bar h2 { margin: 0; font-size: 1.2rem; }
+.help-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.help-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+
+.help-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+.help-Open { border-left-color: var(--broken); }
+.help-InProgress { border-left-color: var(--inuse); }
+.help-Resolved { border-left-color: var(--available); }
+
+.help-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.help-message { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.help-pill {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.help-pill-Open { background: var(--broken-bg); color: var(--broken); }
+.help-pill-InProgress { background: var(--inuse-bg); color: var(--inuse); }
+.help-pill-Resolved { background: var(--available-bg); color: var(--available); }
+
+.help-card .actions { margin-top: 6px; }

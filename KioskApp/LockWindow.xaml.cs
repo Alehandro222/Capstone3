@@ -1,0 +1,300 @@
+using System;
+using System.ComponentModel;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using KioskApp.Core;
+
+namespace KioskApp;
+
+// The fullscreen window people see before they log in.
+// It only draws what KioskController.State says and reports button clicks back to the controller.
+public partial class LockWindow : Window
+{
+    private readonly KioskController _controller;
+    private KioskView? _lastView;
+    private string _purpose = "";
+    private bool _busy;
+    private int _noticeId;
+    private bool _staffMode;   // true while the staff PIN / menu panels are open
+    private bool _loadingSetup;
+
+    public LockWindow(KioskController controller)
+    {
+        InitializeComponent();
+
+        _controller = controller;
+
+        if (_controller.Settings.KioskMode)
+        {
+            // Fullscreen, always on top, no title bar, no taskbar button.
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+            Topmost = true;
+            ShowInTaskbar = false;
+        }
+
+        _controller.StateChanged += Render;
+        Render(_controller.State);
+    }
+
+    // ---- Drawing -----------------------------------------------------------
+
+    private void Render(KioskState state)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(() => Render(state));
+            return;
+        }
+
+        ComputerNameText.Text = state.Computer?.Name ?? (state.View == KioskView.NeedsSetup ? "Setup" : "Computer");
+        OfflineBanner.Visibility = state.Offline ? Visibility.Visible : Visibility.Collapsed;
+
+        // While staff are typing a PIN, do not switch panels underneath them.
+        if (_staffMode) return;
+
+        var enteringLogin = state.View == KioskView.Locked && _lastView != KioskView.Locked;
+        _lastView = state.View;
+
+        switch (state.View)
+        {
+            case KioskView.Locked:
+                LoginIntro.Text = $"Log in to start using {state.Computer?.Name}.";
+                ShowPanel(LoginPanel);
+                if (enteringLogin) ResetLoginForm();
+                break;
+
+            case KioskView.NeedsSetup:
+                ShowPanel(SetupPanel);
+                LoadComputerList();
+                break;
+
+            case KioskView.Farewell:
+                ShowMessage($"Thank you, {state.FarewellName}!", state.FarewellText ?? "");
+                break;
+
+            case KioskView.OutOfService:
+                ShowMessage("Out of service", "This computer isn't working. Please use another one or ask a staff member.");
+                break;
+
+            case KioskView.MissingComputer:
+                ShowMessage("This computer isn't set up", "The tracker doesn't know this computer. Please ask a staff member for help.");
+                break;
+
+            case KioskView.InUseElsewhere:
+                ShowMessage("Computer in use", "Please ask a staff member for help.");
+                break;
+
+            case KioskView.InSession:
+                ShowMessage("Logged in", ""); // this window is hidden while a session runs
+                break;
+
+            default: // Loading
+                ShowMessage("Loading…", state.Offline ? "Cannot reach the tracker. Trying again…" : "");
+                break;
+        }
+    }
+
+    private void ShowPanel(UIElement panel)
+    {
+        foreach (var p in new UIElement[] { MessagePanel, LoginPanel, SetupPanel, StaffPinPanel, StaffMenuPanel })
+        {
+            p.Visibility = ReferenceEquals(p, panel) ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void ShowMessage(string title, string text)
+    {
+        MessageTitle.Text = title;
+        MessageText.Text = text;
+        MessageText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+        ShowPanel(MessagePanel);
+    }
+
+    private void ResetLoginForm()
+    {
+        NameBox.Clear();
+        OtherBox.Clear();
+        OtherBox.Visibility = Visibility.Collapsed;
+        LoginError.Text = "";
+        LoginNotice.Visibility = Visibility.Collapsed;
+        _purpose = "";
+        foreach (var radio in PurposePanel.Children.OfType<RadioButton>())
+        {
+            radio.IsChecked = false;
+        }
+        NameBox.Focus();
+    }
+
+    // ---- Login -------------------------------------------------------------
+
+    private void Purpose_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton radio) return;
+
+        _purpose = radio.Content?.ToString() ?? "";
+        var isOther = _purpose == "Other";
+        OtherBox.Visibility = isOther ? Visibility.Visible : Visibility.Collapsed;
+        if (isOther) OtherBox.Focus();
+    }
+
+    private void Login_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) SubmitLogin();
+    }
+
+    private void LoginButton_Click(object sender, RoutedEventArgs e) => SubmitLogin();
+
+    private async void SubmitLogin()
+    {
+        if (_busy) return;
+
+        var purpose = _purpose == "Other" ? OtherBox.Text : _purpose;
+
+        _busy = true;
+        LoginButton.IsEnabled = false;
+        LoginButton.Content = "Logging in…";
+        LoginError.Text = "";
+
+        var error = await _controller.LoginAsync(NameBox.Text, purpose);
+
+        _busy = false;
+        LoginButton.IsEnabled = true;
+        LoginButton.Content = "Log in and start";
+        if (error is not null) LoginError.Text = error;
+    }
+
+    // ---- Help (before logging in) -------------------------------------------
+
+    private async void LoginHelp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+
+        var dialog = new HelpWindow { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+
+        _busy = true;
+        LoginHelpButton.IsEnabled = false;
+        LoginError.Text = "";
+
+        var error = await _controller.RequestHelpAsync(dialog.HelpMessage);
+
+        _busy = false;
+        LoginHelpButton.IsEnabled = true;
+
+        if (error is null) ShowLoginNotice("Help is on the way. A staff member has been notified.");
+        else LoginError.Text = error;
+    }
+
+    // Shows a green message on the login screen and hides it again after 8 seconds.
+    private async void ShowLoginNotice(string text)
+    {
+        var id = ++_noticeId;
+        LoginNotice.Text = text;
+        LoginNotice.Visibility = Visibility.Visible;
+
+        await Task.Delay(TimeSpan.FromSeconds(8));
+
+        if (id == _noticeId) LoginNotice.Visibility = Visibility.Collapsed;
+    }
+
+    // ---- Setup (first run) -------------------------------------------------
+
+    private async void LoadComputerList()
+    {
+        if (_loadingSetup) return;
+        _loadingSetup = true;
+
+        var (computers, error) = await _controller.GetComputersForSetupAsync();
+        ComputerList.ItemsSource = computers;
+        SetupError.Text = error is null ? "" : "Cannot load the computer list: " + error;
+
+        _loadingSetup = false;
+    }
+
+    private async void SetupButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ComputerList.SelectedItem is not ComputerDto chosen)
+        {
+            SetupError.Text = "Select a computer from the list first.";
+            return;
+        }
+
+        var warning = await _controller.ChooseComputerAsync(chosen.Id);
+        SetupError.Text = warning ?? "";
+    }
+
+    // ---- Staff exit (Ctrl+Shift+Q) -----------------------------------------
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Q && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            OpenStaffPin();
+        }
+    }
+
+    private void OpenStaffPin()
+    {
+        _staffMode = true;
+        PinBox.Clear();
+        PinError.Text = "";
+        ShowPanel(StaffPinPanel);
+        PinBox.Focus();
+    }
+
+    private void PinBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) CheckPin();
+    }
+
+    private void PinOk_Click(object sender, RoutedEventArgs e) => CheckPin();
+
+    private void CheckPin()
+    {
+        if (_controller.VerifyStaffPin(PinBox.Password))
+        {
+            ShowPanel(StaffMenuPanel);
+        }
+        else
+        {
+            PinError.Text = "Incorrect PIN.";
+            PinBox.Clear();
+        }
+    }
+
+    private void StaffCancel_Click(object sender, RoutedEventArgs e) => LeaveStaffMode();
+
+    private void ChangeComputer_Click(object sender, RoutedEventArgs e)
+    {
+        _controller.ChangeComputer();
+        LeaveStaffMode();
+    }
+
+    private void ExitKiosk_Click(object sender, RoutedEventArgs e) => App.Quit();
+
+    private void LeaveStaffMode()
+    {
+        _staffMode = false;
+        _lastView = null; // force the screen to redraw from the current state
+        Render(_controller.State);
+    }
+
+    // ---- Closing -----------------------------------------------------------
+
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        // In kiosk mode, Alt+F4 and similar must not close the login screen.
+        if (_controller.Settings.KioskMode && !App.IsExiting)
+        {
+            e.Cancel = true;
+        }
+    }
+
+    private void Window_Closed(object? sender, EventArgs e) => App.Quit();
+}

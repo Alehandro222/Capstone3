@@ -1,0 +1,158 @@
+/* Kiosk screens: large text and big touch-friendly buttons.
+   Colors come from the variables defined in styles.css (light and dark). */
+
+.k-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.k-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.k-pc { font-weight: 700; font-size: 1.1rem; }
+.k-title { color: var(--muted); }
+
+.k-offline {
+  background: var(--broken-bg);
+  color: var(--broken);
+  text-align: center;
+  padding: 10px 16px;
+}
+
+.k-main {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.k-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  display: grid;
+  gap: 20px;
+}
+.k-card h1 { margin: 0; font-size: 2rem; }
+.k-card h2 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.k-lead { margin: 0; font-size: 1.2rem; color: var(--muted); }
+.k-eyebrow {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--available);
+}
+
+.k-message { text-align: center; padding: 56px 32px; }
+.k-message p { margin: 0; font-size: 1.2rem; color: var(--muted); }
+.k-message-ok h1 { color: var(--available); }
+.k-message-broken h1 { color: var(--broken); }
+
+.k-field { display: grid; gap: 8px; font-size: 1.05rem; font-weight: 500; }
+.k-field input,
+.k-field textarea,
+.k-card > .k-field + .k-field input {
+  font: inherit;
+  font-weight: 400;
+  font-size: 1.2rem;
+  padding: 14px 16px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+}
+.k-field input:focus,
+.k-field textarea:focus { outline: none; border-color: var(--primary); }
+
+.k-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.k-chip {
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 14px 12px;
+  min-height: 56px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.k-chip:hover { border-color: var(--primary); }
+.k-chip-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.k-btn {
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 600;
+  min-height: 56px;
+  padding: 12px 24px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.k-btn:hover:not(:disabled) { border-color: var(--primary); }
+.k-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.k-btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.k-btn-danger { border-color: var(--broken); color: var(--broken); }
+.k-btn-danger:hover:not(:disabled) { background: var(--broken-bg); border-color: var(--broken); }
+
+.k-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.k-panel { display: grid; gap: 14px; }
+.k-confirm { margin: 0; font-size: 1.1rem; }
+
+.k-error { margin: 0; color: var(--broken); background: var(--broken-bg); padding: 12px 14px; border-radius: 10px; }
+.k-notice { margin: 0; color: var(--available); background: var(--available-bg); padding: 12px 14px; border-radius: 10px; }
+.k-fine { margin: 0; font-size: 0.85rem; color: var(--muted); text-align: center; }
+
+.k-timer {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 18px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+.k-timer-value { font-size: 2.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.k-timer-label { color: var(--muted); font-size: 0.9rem; }
+
+.k-devices ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.k-devices li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.k-live {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--inuse-bg);
+  color: var(--inuse);
+}
+
+@media (max-width: 520px) {
+  .k-card { padding: 20px; }
+  .k-row { grid-template-columns: 1fr; }
+}

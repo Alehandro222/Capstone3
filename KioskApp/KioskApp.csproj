@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Use the same version as TrackerApi.csproj but with the -windows suffix, for example net9.0-windows -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>KioskApp</RootNamespace>
+    <AssemblyName>ComputerTrackerKiosk</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Copy the settings file next to the .exe so staff can edit it -->
+    <None Update="kiosk.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

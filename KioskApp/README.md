@@ -1,0 +1,89 @@
+# Computer System Tracker: Kiosk App (Windows desktop, C# / WPF)
+
+The program that runs on each office computer.
+
+1. **Nobody logged in:** a fullscreen login screen asks for the user's name and what they will use the computer for. A **Need help?** button on this screen lets someone who cannot log in ask staff for help.
+2. **Logged in:** the login screen hides and a small box stays in the corner of the screen (name, timer, **Need help?**, **Log out**). The user then uses the computer normally.
+3. **Logged out, or idle too long:** the login screen comes back.
+
+Everything is recorded through TrackerApi, so the staff dashboard shows the computer as In use, with the name and purpose, within a few seconds.
+
+## Requirements
+
+- Windows 10 or 11
+- To build: the .NET SDK (same version as TrackerApi)
+- To run on a PC without the SDK: build self-contained (see Deploying)
+- TrackerApi running and reachable from this PC
+
+## Try it on your own PC
+
+1. Start the API (in the `TrackerApi` folder): `dotnet run`
+2. In this folder (`KioskApp`):
+
+```
+dotnet run
+```
+
+3. The first time, a **Set up this computer** screen lists the computers from the tracker. Pick one (for example PC-01) and press **Use this computer**. The choice is remembered.
+4. Log in with a name and purpose, then check the dashboard at http://localhost:5173.
+
+If `dotnet run` says the target framework is not installed, open `KioskApp.csproj` and change `net8.0-windows` to your version plus `-windows`, for example `net9.0-windows`.
+
+## Settings (`kiosk.settings.json`, next to the .exe)
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `apiUrl` | Address of TrackerApi. On the office PCs this must be the server's address, not `localhost`. | `http://localhost:5080/` |
+| `kioskMode` | `false`: normal window (for testing). `true`: fullscreen, always on top, cannot be closed. | `false` |
+| `staffPin` | PIN for staff (Ctrl+Shift+Q). In kiosk mode, an empty PIN disables the shortcut. | empty |
+| `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `600` (10 min) |
+| `idleWarningSeconds` | Show a warning during the last N seconds. | `60` |
+| `refreshSeconds` | How often to check the tracker for changes made by staff. | `5` |
+
+Leave `computerId` as `0`. The setup screen saves the real one in `C:\ProgramData\ComputerTracker\computer-id.txt`.
+
+## Staff shortcut
+
+Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can change which computer this is, or exit the kiosk.
+
+## Deploying to the office computers
+
+1. Make the API reachable from the other PCs. On the server PC, start it with `dotnet run --urls http://0.0.0.0:5080` and allow port 5080 in Windows Firewall. (CORS is not needed for this app.)
+2. Build one copy that runs without .NET installed:
+
+```
+dotnet publish -c Release -r win-x64 --self-contained true -o publish
+```
+
+3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, and a `staffPin`.
+5. Run `ComputerTrackerKiosk.exe` once, choose the computer on the setup screen, and test.
+6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
+
+## Smart App Control
+
+This is an unsigned program, so Windows **Smart App Control** blocks it where it is turned on, as happened with the API. Either turn it off on those PCs, or sign the .exe with a code-signing certificate.
+
+## What this does not do
+
+- **It is not a full Windows lockdown.** The login screen covers the desktop, but it cannot block Ctrl+Alt+Del, Task Manager or the Windows key. For that, use Windows **Assigned Access** (kiosk mode) or Group Policy on the office PCs.
+- **Logging out does not close the user's programs or browser sign-ins.** For privacy, run the PCs under a Windows account that is reset or signed out between users.
+- **Peripherals are not detected yet.** The session box does not show the USB devices on the computer.
+
+## Files
+
+```
+KioskApp/
+  KioskApp.csproj          project file
+  kiosk.settings.json      settings
+  App.xaml / .cs           starts the app, decides which window is visible, shared styles
+  LockWindow.xaml / .cs    the fullscreen login, setup and staff screens
+  SessionBar.xaml / .cs    the small box shown while someone is logged in
+  HelpWindow.xaml / .cs    the "How can we help?" dialog
+  Core/                    all the logic, with no screen code
+    KioskController.cs     decides what to show; login, logout, idle timeout, help
+    ApiClient.cs           calls TrackerApi
+    IdleSource.cs          asks Windows how long the keyboard and mouse have been idle
+    KioskSettings.cs       reads the settings
+    Models.cs              the data shapes from the API
+```
