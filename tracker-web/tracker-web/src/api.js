@@ -1,5 +1,6 @@
 // All calls to the C# API live here, so components never build URLs themselves.
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5080'
+// Empty = same address as the page (the Vite dev server forwards /api to the API).
+const BASE = import.meta.env.VITE_API_URL || ''
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -29,6 +30,11 @@ const send = (method, path, body) =>
   request(path, { method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
+  // Staff sign-in. The API answers with an HttpOnly cookie the browser keeps.
+  me: () => request('/api/auth/me'),
+  login: (username, password) => send('POST', '/api/auth/login', { username, password }),
+  logout: () => send('POST', '/api/auth/logout'),
+
   getComputers: () => request('/api/computers'),
   getComputer: (id) => request(`/api/computers/${id}`),
   getActiveSessions: () => request('/api/sessions/active'),

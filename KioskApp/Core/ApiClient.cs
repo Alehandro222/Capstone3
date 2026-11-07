@@ -29,9 +29,12 @@ public sealed class ApiClient : IDisposable
 
     private readonly HttpClient _http;
 
-    public ApiClient(string baseUrl)
+    // kioskKey: the shared secret from kiosk.settings.json; the API refuses the kiosk without it.
+    // computerId: read on every request, so the audit log shows which PC did what.
+    public ApiClient(string baseUrl, string kioskKey, Func<int> computerId)
     {
-        _http = new HttpClient
+        var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = new HttpClientHandler() };
+        _http = new HttpClient(handler)
         {
             BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
             Timeout = TimeSpan.FromSeconds(10)
@@ -78,10 +81,34 @@ public sealed class ApiClient : IDisposable
         return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
     }
 
+    // Adds the kiosk's headers to every request.
+    private sealed class KioskHeaders : DelegatingHandler
+    {
+        private readonly string _key;
+        private readonly Func<int> _computerId;
+
+        public KioskHeaders(string key, Func<int> computerId)
+        {
+            _key = key;
+            _computerId = computerId;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            if (!string.IsNullOrEmpty(_key)) request.Headers.Add("X-Kiosk-Key", _key);
+            var id = _computerId();
+            if (id > 0) request.Headers.Add("X-Kiosk-Computer-Id", id.ToString());
+            return base.SendAsync(request, ct);
+        }
+    }
+
     // Turns an error response into an ApiException, using the API's { "message": "..." } text.
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode) return;
+
+        if ((int)response.StatusCode == 401)
+            throw new ApiException(401, "The tracker refused this PC: the kiosk key in kiosk.settings.json is missing or wrong.");
 
         var message = $"The tracker returned an error ({(int)response.StatusCode}).";
         try

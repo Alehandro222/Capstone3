@@ -14,7 +14,9 @@ npm run dev
 
 3. Open http://localhost:5173
 
-If your API uses a different port, edit `VITE_API_URL` in `.env` and restart `npm run dev`.
+4. Sign in with a staff account. The first admin is created from the API folder with `dotnet run -- create-admin <username> "<full name>"` (see the API README).
+
+The dev server forwards `/api` to the API on http://localhost:5080 (see `vite.config.js`), so the browser only ever talks to one address and the sign-in cookie just works. If your API uses a different port, start the dev server with `API_URL=http://localhost:1234 npm run dev`.
 
 ## What it does
 
@@ -30,6 +32,9 @@ If your API uses a different port, edit `VITE_API_URL` in `.env` and restart `np
 src/
   main.jsx                   entry point
   App.jsx                    loads data, owns state, handles actions
+  auth/
+    StaffGate.jsx            shows the sign-in screen until a staff member is signed in
+    Login.jsx                username + password
   api.js                     every call to the C# API
   components/
     ComputerCard.jsx         one computer

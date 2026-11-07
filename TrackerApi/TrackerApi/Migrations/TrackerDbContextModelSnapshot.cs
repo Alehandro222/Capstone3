@@ -48,6 +48,60 @@ namespace TrackerApi.Migrations
                     b.ToTable("AssistTickets");
                 });
 
+            modelBuilder.Entity("TrackerApi.Models.AuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("StaffId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.HasIndex("StaffId");
+
+                    b.HasIndex("TargetType", "TargetId");
+
+                    b.ToTable("AuditLog");
+                });
+
             modelBuilder.Entity("TrackerApi.Models.Computer", b =>
                 {
                     b.Property<int>("Id")
@@ -340,6 +394,62 @@ namespace TrackerApi.Migrations
                             Description = "Monitor flickers and turns off.",
                             Status = "Open"
                         });
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.Staff", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedLoginCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mobile")
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Staff");
                 });
 
             modelBuilder.Entity("TrackerApi.Models.UsageSession", b =>

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Data;
 using TrackerApi.Models;
+using TrackerApi.Services;
 
 namespace TrackerApi.Controllers;
 
@@ -10,10 +11,12 @@ namespace TrackerApi.Controllers;
 public class PeripheralsController : ControllerBase
 {
     private readonly TrackerDbContext _db;
+    private readonly AuditService _audit;
 
-    public PeripheralsController(TrackerDbContext db)
+    public PeripheralsController(TrackerDbContext db, AuditService audit)
     {
         _db = db;
+        _audit = audit;
     }
 
     // GET api/peripherals  (optional filters: ?computerId=1  ?inUse=true)
@@ -50,6 +53,7 @@ public class PeripheralsController : ControllerBase
 
         _db.Peripherals.Add(peripheral);
         await _db.SaveChangesAsync();
+        await _audit.RecordAsync("peripheral.create", "Peripheral", peripheral.Id, peripheral.Name);
         return Ok(ToDto(peripheral));
     }
 
@@ -68,6 +72,8 @@ public class PeripheralsController : ControllerBase
         peripheral.InUseSince = null;
 
         await _db.SaveChangesAsync();
+        await _audit.RecordAsync("peripheral.assign", "Peripheral", id,
+            request.ComputerId is null ? "unplugged" : $"to computer {request.ComputerId}");
         return Ok(ToDto(peripheral));
     }
 

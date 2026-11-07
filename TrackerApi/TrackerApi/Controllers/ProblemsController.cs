@@ -9,10 +9,12 @@ namespace TrackerApi.Controllers;
 public class ProblemsController : ControllerBase
 {
     private readonly ProblemService _problems;
+    private readonly AuditService _audit;
 
-    public ProblemsController(ProblemService problems)
+    public ProblemsController(ProblemService problems, AuditService audit)
     {
         _problems = problems;
+        _audit = audit;
     }
 
     // GET api/problems?status=Open&computerId=3
@@ -23,10 +25,19 @@ public class ProblemsController : ControllerBase
     // POST api/problems   body: { "computerId": 3, "description": "No sound from headset jack" }
     // The PC shows as Maintenance until the report is resolved.
     [HttpPost]
-    public Task<ProblemReportDto> Open(CreateProblemRequest request) => _problems.OpenAsync(request);
+    public async Task<ProblemReportDto> Open(CreateProblemRequest request)
+    {
+        var report = await _problems.OpenAsync(request);
+        await _audit.RecordAsync("problem.open", "ProblemReport", report.Id, $"{report.ComputerName}: {report.Description}");
+        return report;
+    }
 
     // PUT api/problems/1/resolve   body: { "notes": "Replaced the cable" }
     [HttpPut("{id:int}/resolve")]
-    public Task<ProblemReportDto> Resolve(int id, ResolveProblemRequest request) =>
-        _problems.ResolveAsync(id, request.Notes);
+    public async Task<ProblemReportDto> Resolve(int id, ResolveProblemRequest request)
+    {
+        var report = await _problems.ResolveAsync(id, request.Notes);
+        await _audit.RecordAsync("problem.resolve", "ProblemReport", id, $"{report.ComputerName}: {report.ResolutionNotes}");
+        return report;
+    }
 }

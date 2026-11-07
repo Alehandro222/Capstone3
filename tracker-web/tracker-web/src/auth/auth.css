@@ -1,0 +1,47 @@
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.auth-card h1 { margin: 0; font-size: 1.4rem; }
+.auth-card .muted { margin: 4px 0 0; color: var(--muted); }
+
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--broken-bg);
+  color: var(--broken);
+  font-size: 0.9rem;
+}
+
+.auth-submit { padding: 10px 14px; font-size: 1rem; }
+
+.auth-card .small { margin: 0; font-size: 0.8rem; }
+
+.auth-checking { text-align: center; color: var(--muted); margin-top: 30vh; }
+
+/* "Signed in as ..." under the dashboard title */
+.signed-in { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); }
+.link-button {
+  margin-left: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

@@ -34,6 +34,7 @@ If `dotnet run` says the target framework is not installed, open `KioskApp.cspro
 | Setting | Meaning | Default |
 |---|---|---|
 | `apiUrl` | Address of TrackerApi. On the office PCs this must be the server's address, not `localhost`. | `http://localhost:5080/` |
+| `kioskKey` | Shared secret the API checks (`Kiosk:ApiKey` in the API's settings). **Change it for the library**: the default only works with the API in Development mode. | `dev-kiosk-key` |
 | `kioskMode` | `false`: normal window (for testing). `true`: fullscreen, always on top, cannot be closed. | `false` |
 | `staffPin` | PIN for staff (Ctrl+Shift+Q). In kiosk mode, an empty PIN disables the shortcut. | empty |
 | `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `1200` (20 min) |
@@ -56,7 +57,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 ```
 
 3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
-4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, and a `staffPin`.
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskKey` to the same value as `Kiosk:ApiKey` on the server, `kioskMode` to `true`, and a `staffPin`.
 5. Run `ComputerTrackerKiosk.exe` once, choose the computer on the setup screen, and test.
 6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
 

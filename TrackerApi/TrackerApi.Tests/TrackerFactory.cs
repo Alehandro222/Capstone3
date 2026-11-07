@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
 using TrackerApi.Data;
 using TrackerApi.Models;
+using TrackerApi.Services;
 
 namespace TrackerApi.Tests;
 
@@ -17,9 +18,13 @@ namespace TrackerApi.Tests;
 //  - a fresh in-memory SQLite database (same engine as the real one),
 //  - a fake clock the test can move forward ("10 minutes later..."),
 //  - heartbeats required, so Offline can be tested,
-//  - the background cleanup job off (tests run it by hand).
+//  - the background cleanup job off (tests run it by hand),
+//  - a known kiosk key.
 public class TrackerFactory : WebApplicationFactory<Program>
 {
+    public const string KioskKey = "test-kiosk-key";
+    public const string Password = "correct-horse-battery";
+
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 7, 1, 0, 0, TimeSpan.Zero));
@@ -33,6 +38,7 @@ public class TrackerFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("Tracker:RequireHeartbeat", "true");
         builder.UseSetting("Tracker:CleanupIntervalSeconds", "0");
+        builder.UseSetting("Kiosk:ApiKey", KioskKey);
 
         builder.ConfigureServices(services =>
         {
@@ -42,6 +48,37 @@ public class TrackerFactory : WebApplicationFactory<Program>
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
         });
+    }
+
+    // A browser with nobody signed in (a visitor's phone).
+    public HttpClient Anonymous() => CreateClient();
+
+    // The kiosk app on a PC.
+    public HttpClient Kiosk(int? computerId = null, string key = KioskKey)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Kiosk-Key", key);
+        if (computerId is not null) client.DefaultRequestHeaders.Add("X-Kiosk-Computer-Id", computerId.ToString());
+        return client;
+    }
+
+    // Creates a staff account straight in the database.
+    public async Task<StaffDto> CreateStaffAsync(string username, StaffRole role = StaffRole.Staff,
+        string? email = null, string? mobile = null, string password = Password)
+    {
+        using var scope = Services.CreateScope();
+        var staff = scope.ServiceProvider.GetRequiredService<StaffService>();
+        return await staff.CreateAsync(new CreateStaffRequest(username, $"{username} Full Name", role, password, email, mobile));
+    }
+
+    // A browser signed in as a (new) staff member. The client keeps the cookie.
+    public async Task<HttpClient> SignedInAsync(string username = "admin", StaffRole role = StaffRole.Admin)
+    {
+        await CreateStaffAsync(username, role);
+        var client = CreateClient();
+        var response = await client.PostAsJsonAsync("/api/auth/login", new { username, password = Password });
+        response.EnsureSuccessStatusCode();
+        return client;
     }
 
     protected override void Dispose(bool disposing)

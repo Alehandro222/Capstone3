@@ -29,7 +29,17 @@ dotnet tool restore
 dotnet run
 ```
 
-Open http://localhost:5080/swagger to try the endpoints.
+Open http://localhost:5080/swagger to try the endpoints. Most of them need a staff sign-in: call `POST /api/auth/login` in Swagger first, and the browser keeps the cookie.
+
+### The first admin account
+
+No accounts exist at first. Create the first admin from the command line (it asks for the password without showing it):
+
+```bash
+dotnet run -- create-admin maria "Maria Santos"
+```
+
+Then sign in to the dashboard and create everyone else from there (or with `POST /api/staff`).
 
 The SQLite file `tracker.db` is created on first run with 12 PCs (PC-01 to PC-12), PC-03 under maintenance, and a few peripherals. To reset the data, stop the API and delete `tracker.db`, `tracker.db-shm` and `tracker.db-wal`.
 
@@ -38,6 +48,34 @@ The SQLite file `tracker.db` is created on first run with 12 PCs (PC-01 to PC-12
 ### Heartbeats while developing
 
 In the library, a PC shows as Offline unless its kiosk app is running. That makes testing without the kiosk app awkward, so `appsettings.Development.json` sets `RequireHeartbeat` to `false`: no PC is ever Offline while developing. **The library server must run with `RequireHeartbeat: true`** (the default in `appsettings.json`), for example with `ASPNETCORE_ENVIRONMENT=Production`.
+
+## Who may call what
+
+| Caller | How it proves who it is | What it can use |
+|---|---|---|
+| Visitor's phone | Nothing to sign in to. Its pass/waitlist **token** is the proof | Public availability, its own pass, the waitlist |
+| Kiosk app on a PC | The shared **kiosk key** in the `X-Kiosk-Key` header | Its PC's status, heartbeat, starting/ending/extending sessions, help requests |
+| Staff | **Sign-in** with username and password → an HttpOnly cookie | Everything else |
+| Admin | Same, with the Admin role | Also staff accounts, adding PCs and the audit log |
+
+Every endpoint needs a staff sign-in **unless it is marked otherwise**, so a new endpoint is protected by default.
+
+- **Passwords** are stored as salted PBKDF2 hashes, never as text. Minimum 8 characters.
+- **5 wrong passwords** lock the account for 15 minutes (an admin can unlock it sooner).
+- **Deactivating** an account or changing its role signs that person out straight away.
+- There must **always be one active admin**: the API refuses to deactivate or demote the last one.
+- The **kiosk key** is `Kiosk:ApiKey` in the API settings and `kioskKey` in each PC's `kiosk.settings.json`; they must match. Development uses `dev-kiosk-key`. **The library server needs its own key**, set as the environment variable `Kiosk__ApiKey`.
+
+### Audit log
+
+Every staff and kiosk action is recorded in the `AuditLog` table: who, what, which record, when, and from which IP address. Admins read it with `GET /api/audit`. Rows are never changed or deleted. Recorded actions:
+
+- `auth.*`: sign-ins, failed sign-ins, sign-outs, password changes
+- `staff.*`: account changes
+- `pass.lookup`: staff **viewed** a visitor's details (Data Privacy Act)
+- `pass.check_in`, `pass.walk_in`
+- `session.start`, `session.end`, `session.extend`
+- `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
 
 ## Settings (`appsettings.json`, section `Tracker`)
 
@@ -79,7 +117,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 |---|---|---|
 | GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals |
 | GET | `/api/computers/{id}/sessions` | Session history for one PC |
-| POST | `/api/computers` | Add a PC |
+| POST | `/api/computers` | Add a PC (admin) |
 | PUT | `/api/computers/{id}/status` | `Maintenance` opens a problem report, `Available` resolves them (for the current dashboard) |
 | POST | `/api/passes/lookup` | `{ token }` or `{ code }` → who the pass belongs to |
 | POST | `/api/passes/check-in` | `{ token }` or `{ code }` → validates and starts the session |
@@ -94,14 +132,29 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | GET | `/api/waitlist` | Everyone waiting, in order |
 | GET / POST / PUT | `/api/assist`, `/api/peripherals` | Help requests and peripherals (unchanged) |
 
-### Kiosk app on each PC
+### Kiosk app on each PC (kiosk key; staff may call these too)
 
 | Method | Route | Purpose |
 |---|---|---|
 | POST | `/api/computers/{id}/heartbeat` | "This PC is on" (every few seconds) |
+| GET | `/api/computers`, `/api/computers/{id}`, `/api/sessions/active` | Its own status, and the setup screen's PC list |
 | POST | `/api/sessions/start` | The kiosk's own login form (name + purpose) |
+| POST | `/api/sessions/{id}/end`, `/api/sessions/{id}/extend` | Log out / extend. Without a reason, the kiosk's end counts as `Visitor` and staff's as `Staff` |
+| POST | `/api/assist` | "Need help?" |
 
-> **Not protected yet.** Anyone on the network can call the staff endpoints. Staff login (eGovPH and local accounts) comes in phase 2.
+### Sign-in and admin
+
+| Method | Route | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/login` | anyone | `{ username, password }` → sets the sign-in cookie |
+| GET | `/api/auth/me` | staff | Who is signed in |
+| POST | `/api/auth/logout` | staff | Sign out |
+| POST | `/api/auth/password` | staff | `{ currentPassword, newPassword }` |
+| GET / POST | `/api/staff` | admin | List / create staff accounts |
+| PUT | `/api/staff/{id}` | admin | Change name, role, active, contact email/mobile |
+| POST | `/api/staff/{id}/password` | admin | Set a new password |
+| POST | `/api/staff/{id}/unlock` | admin | Clear a lockout |
+| GET | `/api/audit` | admin | Search the audit log (`?staffId=&action=pass.&targetType=&targetId=&from=&to=&limit=`) |
 
 ## Database rules
 
@@ -142,7 +195,8 @@ TrackerApi/
   Models/                  entities (tables) + DTOs (request/response shapes)
   Data/                    TrackerDbContext (tables, rules, seed data), DatabaseSetup
   Migrations/              generated database changes
-  Services/                the rules: status, passes, sessions, waitlist, problems, cleanup
+  Services/                the rules: status, passes, sessions, waitlist, problems, staff, audit, cleanup
+  Auth/                    who may call what: cookies, kiosk key, create-admin command
   Controllers/             the HTTP endpoints (thin: they call the services)
 TrackerApi.Tests/          automated tests
 ```

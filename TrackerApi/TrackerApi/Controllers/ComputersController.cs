@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TrackerApi.Auth;
 using TrackerApi.Data;
 using TrackerApi.Models;
 using TrackerApi.Services;
@@ -8,6 +10,7 @@ namespace TrackerApi.Controllers;
 
 // [ApiController] and [Route] are attributes, like annotations in Java.
 // "api/[controller]" becomes "api/computers" (the class name minus "Controller").
+// Staff only, except the routes the kiosk app needs (marked StaffOrKiosk).
 [ApiController]
 [Route("api/[controller]")]
 public class ComputersController : ControllerBase
@@ -17,11 +20,13 @@ public class ComputersController : ControllerBase
     private readonly ProblemService _problems;
     private readonly SessionService _sessions;
     private readonly TimeProvider _clock;
+    private readonly AuditService _audit;
 
     // The framework injects these automatically (registered in Program.cs).
     public ComputersController(TrackerDbContext db, ComputerStatusService status, ProblemService problems,
-        SessionService sessions, TimeProvider clock)
+        SessionService sessions, TimeProvider clock, AuditService audit)
     {
+        _audit = audit;
         _db = db;
         _status = status;
         _problems = problems;
@@ -31,10 +36,12 @@ public class ComputersController : ControllerBase
 
     // GET api/computers -> staff dashboard: status, who is using it, peripherals.
     [HttpGet]
+    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<List<ComputerDto>> GetAll() => await LoadAsync(null);
 
     // GET api/computers/1
     [HttpGet("{id:int}")]
+    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<ActionResult<ComputerDto>> GetById(int id)
     {
         var list = await LoadAsync(id);
@@ -44,6 +51,7 @@ public class ComputersController : ControllerBase
 
     // POST api/computers   body: { "name": "PC-13" }
     [HttpPost]
+    [Authorize(Policy = Policies.Admin)]
     public async Task<ActionResult<ComputerDto>> Create(CreateComputerRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
@@ -55,6 +63,7 @@ public class ComputersController : ControllerBase
         _db.Computers.Add(computer);
         await _db.SaveChangesAsync();
 
+        await _audit.RecordAsync("computer.create", "Computer", computer.Id, computer.Name);
         var dto = (await LoadAsync(computer.Id))[0];
         return CreatedAtAction(nameof(GetById), new { id = computer.Id }, dto);
     }
@@ -63,6 +72,7 @@ public class ComputersController : ControllerBase
     // The kiosk app on each PC calls this every few seconds. A PC that stops
     // calling it shows as Offline and cannot be picked or checked in.
     [HttpPost("{id:int}/heartbeat")]
+    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<IActionResult> Heartbeat(int id)
     {
         var computer = await _db.Computers.FindAsync(id);
@@ -95,11 +105,15 @@ public class ComputersController : ControllerBase
                 if (await _db.Sessions.AnyAsync(s => s.ComputerId == id && s.EndedAt == null))
                     return Conflict(new { message = "End the active session first." });
                 if (!await _db.ProblemReports.AnyAsync(r => r.ComputerId == id && r.Status == ProblemStatus.Open))
-                    await _problems.OpenAsync(new CreateProblemRequest(id, "Marked out of service from the dashboard."));
+                {
+                    var report = await _problems.OpenAsync(new CreateProblemRequest(id, "Marked out of service from the dashboard."));
+                    await _audit.RecordAsync("problem.open", "ProblemReport", report.Id, $"computer {id}: {report.Description}");
+                }
                 return NoContent();
 
             case ComputerStatus.Available:
                 await _problems.ResolveAllForComputerAsync(id, "Marked as fixed from the dashboard.");
+                await _audit.RecordAsync("problem.resolve_all", "Computer", id, "Marked as fixed from the dashboard.");
                 return NoContent();
 
             default:

@@ -7,7 +7,7 @@ import './help.css'
 
 const REFRESH_MS = 5000 // re-fetch every 5 seconds so the board stays current
 
-export default function App() {
+export default function App({ me, onSignOut }) {
   const [computers, setComputers] = useState([])
   const [sessions, setSessions] = useState([])
   const [tickets, setTickets] = useState([]) // help requests
@@ -32,6 +32,7 @@ export default function App() {
       setTickets(a)
       setError('')
     } catch (e) {
+      if (e.status === 401) return onSignOut() // signed out elsewhere, or the sign-in expired
       // A TypeError means the request never reached the API; anything else is an error it returned.
       setError(
         e instanceof TypeError
@@ -41,7 +42,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [onSignOut])
 
   useEffect(() => {
     load()
@@ -84,6 +85,10 @@ export default function App() {
         <div>
           <h1>Computer System Tracker</h1>
           <p className="subtitle">Open workspace office: live computer status</p>
+          <p className="signed-in">
+            Signed in as <strong>{me.fullName}</strong> ({me.role})
+            <button className="link-button" onClick={onSignOut}>Sign out</button>
+          </p>
         </div>
         <div className="summary">
           <Stat label="Available" value={count('Available')} tone="available" />

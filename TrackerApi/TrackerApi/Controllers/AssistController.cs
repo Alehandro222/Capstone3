@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TrackerApi.Auth;
 using TrackerApi.Data;
 using TrackerApi.Models;
+using TrackerApi.Services;
 
 namespace TrackerApi.Controllers;
 
@@ -10,10 +13,12 @@ namespace TrackerApi.Controllers;
 public class AssistController : ControllerBase
 {
     private readonly TrackerDbContext _db;
+    private readonly AuditService _audit;
 
-    public AssistController(TrackerDbContext db)
+    public AssistController(TrackerDbContext db, AuditService audit)
     {
         _db = db;
+        _audit = audit;
     }
 
     // GET api/assist  (optional filter: ?status=Open)
@@ -30,6 +35,7 @@ public class AssistController : ControllerBase
 
     // POST api/assist   body: { "computerId": 1, "message": "I can't print my file" }
     [HttpPost]
+    [Authorize(Policy = Policies.StaffOrKiosk)] // the kiosk's "Need help?" button
     public async Task<ActionResult<AssistDto>> Create(CreateAssistRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
@@ -61,6 +67,7 @@ public class AssistController : ControllerBase
         ticket.ResolvedAt = request.Status == AssistStatus.Resolved ? DateTime.UtcNow : null;
 
         await _db.SaveChangesAsync();
+        await _audit.RecordAsync("assist.status", "AssistTicket", id, request.Status.ToString());
         return Ok(ToDto(ticket));
     }
 

@@ -40,7 +40,7 @@ public partial class App : Application
         };
 
         var settings = KioskSettings.Load();
-        _api = new ApiClient(settings.ApiUrl);
+        _api = new ApiClient(settings.ApiUrl, settings.KioskKey, () => settings.ComputerId);
         _controller = new KioskController(settings, _api, new WindowsIdleSource());
 
         _lockWindow = new LockWindow(_controller);

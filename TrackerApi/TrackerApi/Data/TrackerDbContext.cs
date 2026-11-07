@@ -20,6 +20,8 @@ public class TrackerDbContext : DbContext
     public DbSet<PassSector> PassSectors => Set<PassSector>();
     public DbSet<ProblemReport> ProblemReports => Set<ProblemReport>();
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
+    public DbSet<Staff> Staff => Set<Staff>();
+    public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     // Store every enum as text ("Pending") instead of a number (0), so the
     // database is readable and adding a new enum value never shifts old data.
@@ -98,6 +100,25 @@ public class TrackerDbContext : DbContext
         modelBuilder.Entity<UsageSession>().Property(s => s.Purpose).HasMaxLength(200);
         modelBuilder.Entity<ProblemReport>().Property(r => r.Description).HasMaxLength(500);
         modelBuilder.Entity<ProblemReport>().Property(r => r.ResolutionNotes).HasMaxLength(500);
+
+        // Staff: usernames are unique. No staff are seeded: the first
+        // admin is created with "dotnet run -- create-admin" (see README).
+        modelBuilder.Entity<Staff>().HasIndex(s => s.Username).IsUnique();
+        modelBuilder.Entity<Staff>().Property(s => s.Username).HasMaxLength(50);
+        modelBuilder.Entity<Staff>().Property(s => s.FullName).HasMaxLength(100);
+        modelBuilder.Entity<Staff>().Property(s => s.Email).HasMaxLength(200);
+        modelBuilder.Entity<Staff>().Property(s => s.Mobile).HasMaxLength(30);
+
+        // Audit log: searched by time, by staff member and by what was changed.
+        modelBuilder.Entity<AuditEntry>().HasIndex(a => a.At);
+        modelBuilder.Entity<AuditEntry>().HasIndex(a => a.StaffId);
+        modelBuilder.Entity<AuditEntry>().HasIndex(a => new { a.TargetType, a.TargetId });
+        modelBuilder.Entity<AuditEntry>().Property(a => a.ActorName).HasMaxLength(100);
+        modelBuilder.Entity<AuditEntry>().Property(a => a.Action).HasMaxLength(50);
+        modelBuilder.Entity<AuditEntry>().Property(a => a.TargetType).HasMaxLength(50);
+        modelBuilder.Entity<AuditEntry>().Property(a => a.TargetId).HasMaxLength(50);
+        modelBuilder.Entity<AuditEntry>().Property(a => a.Details).HasMaxLength(1000);
+        modelBuilder.Entity<AuditEntry>().Property(a => a.IpAddress).HasMaxLength(45);
 
         // ---- Sample data so the API returns something on first run --------------
 

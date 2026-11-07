@@ -17,6 +17,9 @@ public sealed class KioskSettings
 
     public string ApiUrl { get; set; } = "http://localhost:5080/";
 
+    // Shared secret the tracker checks on every request (Kiosk:ApiKey on the server).
+    public string KioskKey { get; set; } = "";
+
     // The id of this computer in the tracker (see PC-01, PC-02... on the dashboard).
     // 0 = not chosen yet; the app shows a setup screen.
     public int ComputerId { get; set; }

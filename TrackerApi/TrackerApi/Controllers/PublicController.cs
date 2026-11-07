@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Data;
@@ -10,6 +11,7 @@ namespace TrackerApi.Controllers;
 // Never put names, ages or other personal data here.
 [ApiController]
 [Route("api/public")]
+[AllowAnonymous]
 public class PublicController : ControllerBase
 {
     private readonly TrackerDbContext _db;

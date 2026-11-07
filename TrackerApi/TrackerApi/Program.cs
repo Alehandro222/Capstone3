@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using TrackerApi.Auth;
 using TrackerApi.Data;
 using TrackerApi.Services;
 
@@ -29,6 +30,12 @@ builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<PassService>();
 builder.Services.AddScoped<WaitlistService>();
 builder.Services.AddScoped<ProblemService>();
+builder.Services.AddScoped<StaffService>();
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signed in
+
+// Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).
+builder.Services.AddTrackerAuth(builder.Configuration);
 
 // Expires passes and ends overdue sessions in the background.
 builder.Services.AddHostedService<CleanupService>();
@@ -51,6 +58,13 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TrackerDbContext>();
     DatabaseSetup.Migrate(db);
+
+    // "dotnet run -- create-admin <username> <full name>" makes the first admin account.
+    if (args.Length > 0 && args[0] == "create-admin")
+    {
+        await AdminCommand.RunAsync(scope.ServiceProvider.GetRequiredService<StaffService>(), args[1..]);
+        return;
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -60,6 +74,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

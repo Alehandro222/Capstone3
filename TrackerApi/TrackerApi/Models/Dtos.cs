@@ -108,6 +108,30 @@ public record WaitlistEntryDto(
     DateTime CreatedAt,
     DateTime ExpiresAt);
 
+public record StaffDto(
+    int Id,
+    string Username,
+    string FullName,
+    StaffRole Role,
+    bool IsActive,
+    string? Email,
+    string? Mobile,
+    DateTime CreatedAt,
+    DateTime? LastLoginAt,
+    DateTime? LockedUntil);
+
+public record AuditEntryDto(
+    long Id,
+    DateTime At,
+    ActorType ActorType,
+    int? StaffId,
+    string ActorName,
+    string Action,
+    string? TargetType,
+    string? TargetId,
+    string? Details,
+    string? IpAddress);
+
 public record AssistDto(
     int Id,
     int ComputerId,
@@ -159,6 +183,21 @@ public record JoinWaitlistRequest(string? FirstName);
 public record CreatePeripheralRequest(string Name, PeripheralType Type, int? ComputerId);
 public record AssignPeripheralRequest(int? ComputerId);
 public record UsePeripheralRequest(bool InUse);
+
+public record LoginRequest(string? Username, string? Password);
+public record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
+
+// Admin: create or edit a staff account.
+public record CreateStaffRequest(
+    string? Username,
+    string? FullName,
+    StaffRole? Role,
+    string? Password,
+    string? Email,
+    string? Mobile);
+
+public record UpdateStaffRequest(string? FullName, StaffRole? Role, bool? IsActive, string? Email, string? Mobile);
+public record SetPasswordRequest(string? Password);
 
 public record CreateAssistRequest(int ComputerId, string Message);
 public record UpdateAssistStatusRequest(AssistStatus Status);

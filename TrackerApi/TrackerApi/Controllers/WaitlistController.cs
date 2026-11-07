@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrackerApi.Models;
 using TrackerApi.Services;
@@ -16,14 +17,17 @@ public class WaitlistController : ControllerBase
     }
 
     // POST api/waitlist   body: { "firstName": "Ana" } (optional) -> only when no PC is free
+    [AllowAnonymous]
     [HttpPost]
     public Task<WaitlistJoinedDto> Join(JoinWaitlistRequest request) => _waitlist.JoinAsync(request);
 
     // GET api/waitlist/{token} -> place in line, and how many PCs are free now
+    [AllowAnonymous]
     [HttpGet("{token}")]
     public Task<WaitlistStatusDto> Get(string token) => _waitlist.GetAsync(token);
 
     // DELETE api/waitlist/{token} -> leave the line
+    [AllowAnonymous]
     [HttpDelete("{token}")]
     public Task<WaitlistStatusDto> Leave(string token) => _waitlist.LeaveAsync(token);
 
