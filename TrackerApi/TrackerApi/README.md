@@ -1,64 +1,148 @@
 # Computer System Tracker: API (C# / ASP.NET Core)
 
-Backend for tracking computers in a public open-workspace office.
+Backend for the library's public computers: visitors register on their phone and pick a PC, staff scan their pass at the help desk, and the session runs on the PC with a time limit.
 
-## What it tracks
+## How a visit works
 
-| Need | Where |
+1. **Phone:** the visitor fills in the form and picks an available PC → `POST /api/passes`. The PC becomes **Reserved** and the phone gets a pass: a QR token plus a 6-digit backup code, valid for 10 minutes.
+2. **Help desk:** staff scan the QR (or type the code) → `POST /api/passes/check-in`. The server checks the pass exists, is not expired or used, and the PC is not offline, then starts a **3-hour session**.
+3. **PC:** the kiosk app sees the session and unlocks. During the last 10 minutes the visitor can extend by 1 hour (at most twice), but only if nobody is on the waitlist.
+4. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit.
+
+## PC status
+
+Status is **never stored**. The server works it out on every request, so it can't be out of date. The first rule that matches wins:
+
+| Status | When |
 |---|---|
-| Who is using the computer, and why | `UsageSession` (`UserName`, `Purpose`) |
-| Computer status (Available / InUse / NotWorking) | `Computer.Status` |
-| Peripherals connected to each computer | `Peripheral.ComputerId` |
-| Peripheral currently in use (headset, tablet, mic...) | `Peripheral.IsInUse` / `InUseSince` |
-| Assist / help requests | `AssistTicket` |
+| `Offline` | The kiosk app hasn't sent a heartbeat for 30 seconds |
+| `InUse` | A session is running |
+| `Maintenance` | There is an open problem report |
+| `Reserved` | Someone holds an unscanned pass for it |
+| `Available` | None of the above |
 
-## Run it (VS Code)
-
-1. Install the **C# Dev Kit** extension in VS Code.
-2. Open the `TrackerApi` folder in VS Code.
-3. In a terminal inside that folder:
+## Run it
 
 ```bash
-dotnet --version   # if the major version isn't 8, edit <TargetFramework> in TrackerApi.csproj (e.g. net9.0)
-dotnet restore
+dotnet --version   # the project targets .NET 8 (net8.0); the .NET 8 runtime must be installed
+dotnet tool restore
 dotnet run
 ```
 
-4. Open http://localhost:5080/swagger and try the endpoints from the browser.
+Open http://localhost:5080/swagger to try the endpoints.
 
-The SQLite file `tracker.db` is created on first run with 3 sample computers and 6 peripherals. To reset the data, stop the app and delete `tracker.db`.
+The SQLite file `tracker.db` is created on first run with 12 PCs (PC-01 to PC-12), PC-03 under maintenance, and a few peripherals. To reset the data, stop the API and delete `tracker.db`, `tracker.db-shm` and `tracker.db-wal`.
+
+> **Upgrading from the old version:** a `tracker.db` made before migrations were added can't be upgraded. The API stops with a message saying so. Delete the file and start again.
+
+### Heartbeats while developing
+
+In the library, a PC shows as Offline unless its kiosk app is running. That makes testing without the kiosk app awkward, so `appsettings.Development.json` sets `RequireHeartbeat` to `false`: no PC is ever Offline while developing. **The library server must run with `RequireHeartbeat: true`** (the default in `appsettings.json`), for example with `ASPNETCORE_ENVIRONMENT=Production`.
+
+## Settings (`appsettings.json`, section `Tracker`)
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `PassLifetimeMinutes` | Time to get the pass scanned | `10` |
+| `SessionMinutes` | Session length | `180` |
+| `ExtensionMinutes` | Time added per extension | `60` |
+| `MaxExtensions` | Extensions allowed per session | `2` |
+| `ExtendWindowMinutes` | Extending is allowed only in the last N minutes | `10` |
+| `OfflineAfterSeconds` | No heartbeat for this long → Offline | `30` |
+| `RequireHeartbeat` | `false` = never Offline (development only) | `true` |
+| `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `120` |
+| `CleanupIntervalSeconds` | How often passes expire and overdue sessions end | `15` |
+
+The 20-minute idle logout is set in the kiosk app (`idleTimeoutSeconds` in `kiosk.settings.json`), because only the PC knows when its keyboard and mouse were last used.
 
 ## Endpoints
 
+Errors always come back as `{ "message": "..." }`, written so the frontend can show them as they are.
+
+### Visitor's phone
+
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/computers` | Dashboard: status, current user, peripherals |
-| GET | `/api/computers/{id}` | One computer |
-| POST | `/api/computers` | Add a computer |
-| PUT | `/api/computers/{id}/status` | Mark Available / NotWorking |
-| GET | `/api/sessions/active` | Who is on a computer right now |
-| POST | `/api/sessions/start` | Start a session (sets computer to InUse) |
-| POST | `/api/sessions/{id}/end` | End a session (frees computer + peripherals) |
-| GET | `/api/peripherals` | List (`?computerId=` / `?inUse=`) |
-| POST | `/api/peripherals` | Add a peripheral |
-| PUT | `/api/peripherals/{id}/assign` | Plug into a computer / unplug (null) |
-| PUT | `/api/peripherals/{id}/use` | Mark in use / not in use |
-| GET | `/api/assist` | Help requests (`?status=Open`) |
-| POST | `/api/assist` | Ask for help from a computer |
-| PUT | `/api/assist/{id}/status` | Open / InProgress / Resolved |
+| GET | `/api/public/computers` | Live availability (no names or personal data) |
+| POST | `/api/passes` | Register and reserve a PC → returns `token` (keep it!) and the pass |
+| GET | `/api/passes/{token}` | Pass status; includes the session once checked in (poll this) |
+| POST | `/api/passes/{token}/cancel` | Choose a different PC |
+| POST | `/api/passes/{token}/extend` | Extend the session |
+| POST | `/api/passes/{token}/end` | End the session |
+| POST | `/api/waitlist` | Join the waitlist (only when no PC is free) → returns `token` |
+| GET | `/api/waitlist/{token}` | Place in line, and how many PCs are free |
+| DELETE | `/api/waitlist/{token}` | Leave the line |
+
+### Staff
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals |
+| GET | `/api/computers/{id}/sessions` | Session history for one PC |
+| POST | `/api/computers` | Add a PC |
+| PUT | `/api/computers/{id}/status` | `Maintenance` opens a problem report, `Available` resolves them (for the current dashboard) |
+| POST | `/api/passes/lookup` | `{ token }` or `{ code }` → who the pass belongs to |
+| POST | `/api/passes/check-in` | `{ token }` or `{ code }` → validates and starts the session |
+| POST | `/api/passes/walk-in` | Visitor without a phone: register and start right away |
+| GET | `/api/passes` | Recent passes (`?status=Pending`) |
+| GET | `/api/sessions/active` | Running sessions |
+| GET | `/api/sessions` | History (`?computerId=`, `?from=`, `?to=`, `?limit=`) |
+| POST | `/api/sessions/{id}/end` | End a session; optional body `{ "reason": "Staff" }` |
+| POST | `/api/sessions/{id}/extend` | Extend a session |
+| GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report |
+| PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
+| GET | `/api/waitlist` | Everyone waiting, in order |
+| GET / POST / PUT | `/api/assist`, `/api/peripherals` | Help requests and peripherals (unchanged) |
+
+### Kiosk app on each PC
+
+| Method | Route | Purpose |
+|---|---|---|
+| POST | `/api/computers/{id}/heartbeat` | "This PC is on" (every few seconds) |
+| POST | `/api/sessions/start` | The kiosk's own login form (name + purpose) |
+
+> **Not protected yet.** Anyone on the network can call the staff endpoints. Staff login (eGovPH and local accounts) comes in phase 2.
+
+## Database rules
+
+- **Foreign keys:** every pass, session and problem report must point to a real PC. A PC with history can't be deleted.
+- **One active session per PC** and **one pending pass per PC**, enforced by unique indexes in the database itself, not just by the code.
+- **Transactions:** "check the PC is free, then reserve it" and "check the pass, then start the session" each run as one all-or-nothing step, so two people can't grab the same PC at the same moment.
+- **Server-clock timestamps:** every time comes from the server, stored in UTC (JSON times end in `Z`).
+- **Secrets are hashed:** pass and waitlist tokens are stored as SHA-256 hashes, so a copy of the database can't be used to fake passes.
+- **Enums are stored as text** (`"Pending"`, not `0`), so the database is readable in any SQLite viewer.
+
+## Changing the database (migrations)
+
+The tables come from the classes in `Models/` and the rules in `Data/TrackerDbContext.cs`. After changing them:
+
+```bash
+dotnet tool restore                          # once; installs dotnet-ef for this repo
+dotnet dotnet-ef migrations add DescribeYourChange
+dotnet run                                   # applies it on startup
+```
+
+Commit the new files in `Migrations/`. Never edit a migration that teammates have already applied; add a new one instead.
+
+## Tests
+
+```bash
+cd ../TrackerApi.Tests
+dotnet test
+```
+
+The tests start the whole API in memory, with a fresh database and a fake clock. That lets them check things like "10 minutes later the pass has expired" without waiting.
 
 ## Project layout
 
 ```
 TrackerApi/
   Program.cs               entry point + service setup
-  appsettings.json         config (database connection string)
+  appsettings.json         database connection + time limits
   Models/                  entities (tables) + DTOs (request/response shapes)
-  Data/TrackerDbContext.cs database access + seed data
-  Controllers/             the HTTP endpoints
+  Data/                    TrackerDbContext (tables, rules, seed data), DatabaseSetup
+  Migrations/              generated database changes
+  Services/                the rules: status, passes, sessions, waitlist, problems, cleanup
+  Controllers/             the HTTP endpoints (thin: they call the services)
+TrackerApi.Tests/          automated tests
 ```
-
-## Notes
-
-- `EnsureCreated()` builds the database from the models. Once the schema starts changing often, we'll switch to EF Core **migrations**.
-- CORS allows `http://localhost:5173` (Vite's default) so a React frontend can call this API.

@@ -18,6 +18,7 @@ public enum KioskView
     Locked,          // available: show the login screen
     OutOfService,    // marked "Not working" by staff
     InUseElsewhere,  // in use, but not by a session we can see
+    Reserved,        // a visitor holds a pass for this PC; staff will check them in
     InSession,       // someone is logged in: show the small session bar
     Farewell         // just logged out: "Thank you" for a few seconds
 }
@@ -130,6 +131,7 @@ public sealed class KioskController
         try
         {
             var id = _settings.ComputerId;
+            await _api.SendHeartbeatAsync(id); // "this PC is on": otherwise the tracker shows it Offline
             var computer = await _api.GetComputerAsync(id);
             var sessions = await _api.GetActiveSessionsAsync();
 
@@ -342,8 +344,10 @@ public sealed class KioskController
 
         return _computer.Status switch
         {
-            ComputerStatus.NotWorking =>
+            ComputerStatus.Maintenance =>
                 new KioskState(KioskView.OutOfService, _computer, Offline: _offline),
+            ComputerStatus.Reserved =>
+                new KioskState(KioskView.Reserved, _computer, Offline: _offline),
             ComputerStatus.InUse when _session is not null =>
                 new KioskState(KioskView.InSession, _computer, _session, Offline: _offline, IdleSecondsLeft: _idleSecondsLeft),
             ComputerStatus.InUse =>

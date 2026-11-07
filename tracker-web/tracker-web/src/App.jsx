@@ -67,7 +67,7 @@ export default function App() {
     }
   }
 
-  const count = (status) => computers.filter((c) => c.status === status).length
+  const count = (...statuses) => computers.filter((c) => statuses.includes(c.status)).length
 
   // Requests nobody has picked up yet: shown as a badge, and in the browser tab title.
   const openRequests = tickets.filter((t) => t.status === 'Open').length
@@ -87,8 +87,8 @@ export default function App() {
         </div>
         <div className="summary">
           <Stat label="Available" value={count('Available')} tone="available" />
-          <Stat label="In use" value={count('InUse')} tone="inuse" />
-          <Stat label="Not working" value={count('NotWorking')} tone="broken" />
+          <Stat label="In use" value={count('InUse', 'Reserved')} tone="inuse" />
+          <Stat label="Unavailable" value={count('Maintenance', 'Offline')} tone="broken" />
         </div>
       </header>
 
@@ -132,7 +132,7 @@ export default function App() {
               run(() => api.setPeripheralInUse(p.id, !p.isInUse))
             }
             onSetStatus={(status) =>
-              run(() => api.setComputerStatus(computer.id, status), `${computer.name} marked ${status === 'NotWorking' ? 'not working' : 'available'}`)
+              run(() => api.setComputerStatus(computer.id, status), `${computer.name} marked ${status === 'Maintenance' ? 'out of service' : 'available'}`)
             }
           />
         ))}

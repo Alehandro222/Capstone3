@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TrackerApi.Data;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using TrackerApi.Models;
+using TrackerApi.Services;
 
 namespace TrackerApi.Controllers;
 
@@ -9,88 +9,40 @@ namespace TrackerApi.Controllers;
 [Route("api/[controller]")]
 public class SessionsController : ControllerBase
 {
-    private readonly TrackerDbContext _db;
+    private readonly SessionService _sessions;
 
-    public SessionsController(TrackerDbContext db)
+    public SessionsController(SessionService sessions)
     {
-        _db = db;
+        _sessions = sessions;
     }
 
     // GET api/sessions/active -> everyone currently using a computer
     [HttpGet("active")]
-    public async Task<List<SessionDto>> GetActive()
-    {
-        var sessions = await _db.Sessions
-            .Where(s => s.EndedAt == null)
-            .OrderBy(s => s.StartedAt)
-            .ToListAsync();
+    public Task<List<SessionDto>> GetActive() => _sessions.GetActiveAsync();
 
-        return sessions.Select(ToDto).ToList();
-    }
+    // GET api/sessions?computerId=1&from=2026-11-01&to=2026-12-01&limit=100 -> history, newest first
+    [HttpGet]
+    public Task<List<SessionDto>> GetHistory([FromQuery] int? computerId, [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to, [FromQuery] int limit = 100) =>
+        _sessions.GetHistoryAsync(computerId, from?.ToUniversalTime(), to?.ToUniversalTime(), limit);
 
-    // POST api/sessions/start
+    // GET api/sessions/5
+    [HttpGet("{id:int}")]
+    public Task<SessionDto> Get(int id) => _sessions.GetAsync(id);
+
+    // POST api/sessions/start   (the kiosk's own login form)
     // body: { "computerId": 1, "userName": "Maria", "purpose": "Job application" }
     [HttpPost("start")]
-    public async Task<ActionResult<SessionDto>> Start(StartSessionRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Purpose))
-            return BadRequest(new { message = "UserName and Purpose are required." });
+    public Task<SessionDto> Start(StartSessionRequest request) => _sessions.StartFromKioskFormAsync(request);
 
-        // Keep stored text a sensible size (the kiosk form enforces the same limits).
-        if (request.UserName.Trim().Length > 100)
-            return BadRequest(new { message = "Name must be 100 characters or fewer." });
-        if (request.Purpose.Trim().Length > 200)
-            return BadRequest(new { message = "Purpose must be 200 characters or fewer." });
-
-        var computer = await _db.Computers.FindAsync(request.ComputerId);
-        if (computer is null) return NotFound(new { message = "Computer not found." });
-
-        if (computer.Status != ComputerStatus.Available)
-            return Conflict(new { message = $"Computer is {computer.Status}." });
-
-        var session = new UsageSession
-        {
-            ComputerId = computer.Id,
-            UserName = request.UserName.Trim(),
-            Purpose = request.Purpose.Trim(),
-            StartedAt = DateTime.UtcNow
-        };
-
-        computer.Status = ComputerStatus.InUse;
-        _db.Sessions.Add(session);
-        await _db.SaveChangesAsync();
-
-        return Ok(ToDto(session));
-    }
-
-    // POST api/sessions/5/end -> frees the computer and its peripherals
+    // POST api/sessions/5/end   body (optional): { "reason": "Staff" }
+    // Frees the computer and its peripherals. Without a body the reason is "Visitor".
     [HttpPost("{id:int}/end")]
-    public async Task<ActionResult<SessionDto>> End(int id)
-    {
-        var session = await _db.Sessions.FindAsync(id);
-        if (session is null) return NotFound();
-        if (session.EndedAt is not null) return Conflict(new { message = "Session already ended." });
+    public Task<SessionDto> End(int id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] EndSessionRequest? request) =>
+        _sessions.EndAsync(id, request?.Reason ?? SessionEndReason.Visitor);
 
-        session.EndedAt = DateTime.UtcNow;
-
-        var computer = await _db.Computers.FindAsync(session.ComputerId);
-        if (computer is not null && computer.Status == ComputerStatus.InUse)
-            computer.Status = ComputerStatus.Available;
-
-        // Release any peripherals that were marked in use on this computer.
-        var busy = await _db.Peripherals
-            .Where(p => p.ComputerId == session.ComputerId && p.IsInUse)
-            .ToListAsync();
-        foreach (var p in busy)
-        {
-            p.IsInUse = false;
-            p.InUseSince = null;
-        }
-
-        await _db.SaveChangesAsync();
-        return Ok(ToDto(session));
-    }
-
-    private static SessionDto ToDto(UsageSession s) =>
-        new(s.Id, s.ComputerId, s.UserName, s.Purpose, s.StartedAt, s.EndedAt);
+    // POST api/sessions/5/extend -> adds time, if the extension rules allow it
+    [HttpPost("{id:int}/extend")]
+    public Task<SessionDto> Extend(int id) => _sessions.ExtendAsync(id);
 }

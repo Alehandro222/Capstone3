@@ -23,3 +23,4 @@ C:\Users\Jon Alejandro\Desktop\Capstone Test 3\KioskApp\obj\Debug\net8.0-windows
 C:\Users\Jon Alejandro\Desktop\Capstone Test 3\KioskApp\obj\Debug\net8.0-windows\ComputerTrackerKiosk.pdb
 C:\Users\Jon Alejandro\Desktop\Capstone Test 3\KioskApp\obj\Debug\net8.0-windows\KioskApp.genruntimeconfig.cache
 C:\Users\Jon Alejandro\Desktop\Capstone Test 3\KioskApp\obj\Debug\net8.0-windows\ref\ComputerTrackerKiosk.dll
+C:\Users\Jon Alejandro\Desktop\Capstone Test 3\KioskApp\obj\Debug\net8.0-windows\KioskApp.sourcelink.json

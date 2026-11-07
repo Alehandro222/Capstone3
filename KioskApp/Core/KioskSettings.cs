@@ -28,7 +28,7 @@ public sealed class KioskSettings
     public string StaffPin { get; set; } = "";
 
     // Log the user out after this many seconds with no keyboard or mouse use. 0 = never.
-    public int IdleTimeoutSeconds { get; set; } = 600;
+    public int IdleTimeoutSeconds { get; set; } = 1200;
 
     // Show a warning during the last N seconds before the automatic log out.
     public int IdleWarningSeconds { get; set; } = 60;

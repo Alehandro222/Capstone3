@@ -85,6 +85,10 @@ public partial class LockWindow : Window
                 ShowMessage("This computer isn't set up", "The tracker doesn't know this computer. Please ask a staff member for help.");
                 break;
 
+            case KioskView.Reserved:
+                ShowMessage("Reserved", "This computer is reserved for a visitor. Please check in at the help desk.");
+                break;
+
             case KioskView.InUseElsewhere:
                 ShowMessage("Computer in use", "Please ask a staff member for help.");
                 break;

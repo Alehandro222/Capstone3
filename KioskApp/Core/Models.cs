@@ -6,11 +6,14 @@ namespace KioskApp.Core;
 // These records mirror the JSON that TrackerApi sends. They are the same
 // shapes as the DTOs in TrackerApi/Models/Dtos.cs.
 
+// Worked out by the API (see TrackerApi/Models/Computer.cs).
 public enum ComputerStatus
 {
-    Available,
+    Offline,
     InUse,
-    NotWorking
+    Maintenance,
+    Reserved,
+    Available
 }
 
 public sealed record PeripheralDto(

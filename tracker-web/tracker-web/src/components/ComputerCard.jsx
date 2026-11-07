@@ -1,15 +1,27 @@
 import PeripheralList from './PeripheralList.jsx'
 
+// The API works out the status (see TrackerApi/Models/Computer.cs).
 const STATUS_LABEL = {
   Available: 'Available',
+  Reserved: 'Reserved',
   InUse: 'In use',
-  NotWorking: 'Not working',
+  Maintenance: 'Maintenance',
+  Offline: 'Offline',
 }
 
 const STATUS_TONE = {
   Available: 'available',
+  Reserved: 'inuse',
   InUse: 'inuse',
-  NotWorking: 'broken',
+  Maintenance: 'broken',
+  Offline: 'broken',
+}
+
+const EMPTY_TEXT = {
+  Available: 'Ready for the next user',
+  Reserved: 'Waiting for the visitor to check in',
+  Maintenance: 'Out of service',
+  Offline: 'Not responding. Is the PC on and the kiosk app running?',
 }
 
 // "Started 14 min ago" style text from an ISO date string.
@@ -49,7 +61,9 @@ export default function ComputerCard({
         </div>
       ) : (
         <p className="muted user-empty">
-          {computer.status === 'NotWorking' ? 'Out of service' : 'Ready for the next user'}
+          {computer.status === 'Maintenance' && computer.openProblem
+            ? `Out of service: ${computer.openProblem}`
+            : EMPTY_TEXT[computer.status]}
         </p>
       )}
 
@@ -65,7 +79,7 @@ export default function ComputerCard({
             <button className="btn btn-primary" onClick={onStart}>
               Start session
             </button>
-            <button className="btn btn-quiet" onClick={() => onSetStatus('NotWorking')}>
+            <button className="btn btn-quiet" onClick={() => onSetStatus('Maintenance')}>
               Report broken
             </button>
           </>
@@ -82,7 +96,7 @@ export default function ComputerCard({
           </>
         )}
 
-        {computer.status === 'NotWorking' && (
+        {computer.status === 'Maintenance' && (
           <button className="btn" onClick={() => onSetStatus('Available')}>
             Mark as fixed
           </button>

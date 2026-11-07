@@ -96,7 +96,14 @@ function KioskScreen({ computerId }) {
         text="You have been logged out. Have a great day."
       />
     )
-  } else if (computer.status === 'NotWorking') {
+  } else if (computer.status === 'Reserved') {
+    body = (
+      <Message
+        title="Reserved"
+        text="This computer is reserved for a visitor. Please check in at the help desk."
+      />
+    )
+  } else if (computer.status === 'Maintenance') {
     body = (
       <Message
         tone="broken"

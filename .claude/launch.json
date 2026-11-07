@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tracker-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "TrackerApi/TrackerApi/TrackerApi.csproj"],
+      "port": 5080,
+      "url": "http://localhost:5080"
+    },
+    {
+      "name": "tracker-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "tracker-web/tracker-web", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

@@ -219,7 +219,7 @@ namespace KioskApp {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/ComputerTrackerKiosk;V1.0.0.0;component/lockwindow.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/ComputerTrackerKiosk;component/lockwindow.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\LockWindow.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

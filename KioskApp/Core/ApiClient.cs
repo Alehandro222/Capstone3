@@ -44,6 +44,12 @@ public sealed class ApiClient : IDisposable
     public Task<ComputerDto> GetComputerAsync(int id, CancellationToken ct = default) =>
         GetAsync<ComputerDto>($"api/computers/{id}", ct);
 
+    public async Task SendHeartbeatAsync(int computerId, CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync($"api/computers/{computerId}/heartbeat", null, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     public Task<List<SessionDto>> GetActiveSessionsAsync(CancellationToken ct = default) =>
         GetAsync<List<SessionDto>>("api/sessions/active", ct);
 

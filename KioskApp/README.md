@@ -36,7 +36,7 @@ If `dotnet run` says the target framework is not installed, open `KioskApp.cspro
 | `apiUrl` | Address of TrackerApi. On the office PCs this must be the server's address, not `localhost`. | `http://localhost:5080/` |
 | `kioskMode` | `false`: normal window (for testing). `true`: fullscreen, always on top, cannot be closed. | `false` |
 | `staffPin` | PIN for staff (Ctrl+Shift+Q). In kiosk mode, an empty PIN disables the shortcut. | empty |
-| `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `600` (10 min) |
+| `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `1200` (20 min) |
 | `idleWarningSeconds` | Show a warning during the last N seconds. | `60` |
 | `refreshSeconds` | How often to check the tracker for changes made by staff. | `5` |
 
