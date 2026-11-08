@@ -139,6 +139,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals |
+| GET | `/api/computers/{id}` | One PC, same details |
 | GET | `/api/computers/{id}/sessions` | Session history for one PC |
 | POST | `/api/computers` | Add a PC (admin) |
 | POST | `/api/computers/{id}/pairing-code` | One-time code to pair that PC's kiosk app (admin) |
@@ -150,12 +151,18 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | GET | `/api/passes` | Recent passes (`?status=Pending`) |
 | GET | `/api/sessions/active` | Running sessions |
 | GET | `/api/sessions` | History (`?computerId=`, `?from=`, `?to=`, `?limit=`) |
-| POST | `/api/sessions/{id}/end` | End a session; optional body `{ "reason": "Staff" }` |
+| GET | `/api/sessions/{id}` | One session |
+| POST | `/api/sessions/start` | Start a session from a typed name and purpose `{ computerId, userName, purpose }` (no registration data: prefer walk-in) |
+| POST | `/api/sessions/{id}/end` | End a session. Recorded as ended by staff; the only reason allowed is `Staff` |
 | POST | `/api/sessions/{id}/extend` | Extend a session |
 | GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report |
 | PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
 | GET | `/api/waitlist` | Everyone waiting, in order |
-| GET / POST / PUT | `/api/assist`, `/api/peripherals` | Help requests and peripherals (unchanged) |
+| GET / POST | `/api/assist` | Help requests (`?status=Open`) / create one `{ computerId, message }` (500 characters max) |
+| PUT | `/api/assist/{id}/status` | `{ status }`: Open, InProgress or Resolved |
+| GET / POST | `/api/peripherals` | List (`?computerId=`, `?inUse=`) / add a peripheral |
+| PUT | `/api/peripherals/{id}/assign` | `{ computerId }` to plug it into a PC, `null` to unplug |
+| PUT | `/api/peripherals/{id}/use` | `{ inUse }` |
 
 ### Kiosk app on each PC (its own key; only for its own PC)
 

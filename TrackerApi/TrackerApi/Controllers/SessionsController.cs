@@ -40,7 +40,7 @@ public class SessionsController : ControllerBase
     [HttpPost("start")]
     public async Task<SessionDto> Start(StartSessionRequest request)
     {
-        var session = await _sessions.StartFromKioskFormAsync(request);
+        var session = await _sessions.StartByNameAsync(request);
         await _audit.RecordAsync("session.start", "Session", session.Id,
             $"computer {session.ComputerId}, {session.UserName}");
         return session;
@@ -52,7 +52,11 @@ public class SessionsController : ControllerBase
     public async Task<SessionDto> End(int id,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] EndSessionRequest? request)
     {
-        var reason = request?.Reason ?? SessionEndReason.Staff;
+        // Staff can only record that staff ended it; the other reasons belong to the
+        // visitor, the kiosk app and the cleanup job, so the history stays truthful.
+        if (request?.Reason is not (null or SessionEndReason.Staff))
+            throw TrackerException.BadRequest("Staff can only end a session with the reason \"Staff\".");
+        var reason = SessionEndReason.Staff;
         var session = await _sessions.EndAsync(id, reason);
         await _audit.RecordAsync("session.end", "Session", id, $"computer {session.ComputerId}, reason: {reason}");
         return session;

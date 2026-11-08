@@ -12,11 +12,13 @@ public class PeripheralsController : ControllerBase
 {
     private readonly TrackerDbContext _db;
     private readonly AuditService _audit;
+    private readonly TimeProvider _clock;
 
-    public PeripheralsController(TrackerDbContext db, AuditService audit)
+    public PeripheralsController(TrackerDbContext db, AuditService audit, TimeProvider clock)
     {
         _db = db;
         _audit = audit;
+        _clock = clock;
     }
 
     // GET api/peripherals  (optional filters: ?computerId=1  ?inUse=true)
@@ -36,36 +38,26 @@ public class PeripheralsController : ControllerBase
 
     // POST api/peripherals   body: { "name": "Headset B", "type": "Headset", "computerId": 2 }
     [HttpPost]
-    public async Task<ActionResult<PeripheralDto>> Create(CreatePeripheralRequest request)
+    public async Task<PeripheralDto> Create(CreatePeripheralRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { message = "Name is required." });
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name)) throw TrackerException.BadRequest("Name is required.");
+        if (name.Length > 100) throw TrackerException.BadRequest("Name must be 100 characters or fewer.");
+        await EnsureComputerExistsAsync(request.ComputerId);
 
-        if (request.ComputerId is not null && !await _db.Computers.AnyAsync(c => c.Id == request.ComputerId))
-            return NotFound(new { message = "Computer not found." });
-
-        var peripheral = new Peripheral
-        {
-            Name = request.Name.Trim(),
-            Type = request.Type,
-            ComputerId = request.ComputerId
-        };
-
+        var peripheral = new Peripheral { Name = name, Type = request.Type, ComputerId = request.ComputerId };
         _db.Peripherals.Add(peripheral);
         await _db.SaveChangesAsync();
         await _audit.RecordAsync("peripheral.create", "Peripheral", peripheral.Id, peripheral.Name);
-        return Ok(ToDto(peripheral));
+        return ToDto(peripheral);
     }
 
     // PUT api/peripherals/3/assign   body: { "computerId": 2 }  (null = unplug)
     [HttpPut("{id:int}/assign")]
-    public async Task<ActionResult<PeripheralDto>> Assign(int id, AssignPeripheralRequest request)
+    public async Task<PeripheralDto> Assign(int id, AssignPeripheralRequest request)
     {
-        var peripheral = await _db.Peripherals.FindAsync(id);
-        if (peripheral is null) return NotFound();
-
-        if (request.ComputerId is not null && !await _db.Computers.AnyAsync(c => c.Id == request.ComputerId))
-            return NotFound(new { message = "Computer not found." });
+        var peripheral = await FindAsync(id);
+        await EnsureComputerExistsAsync(request.ComputerId);
 
         peripheral.ComputerId = request.ComputerId;
         peripheral.IsInUse = false; // moving or unplugging it ends any "in use" state
@@ -74,24 +66,31 @@ public class PeripheralsController : ControllerBase
         await _db.SaveChangesAsync();
         await _audit.RecordAsync("peripheral.assign", "Peripheral", id,
             request.ComputerId is null ? "unplugged" : $"to computer {request.ComputerId}");
-        return Ok(ToDto(peripheral));
+        return ToDto(peripheral);
     }
 
     // PUT api/peripherals/3/use   body: { "inUse": true }
     [HttpPut("{id:int}/use")]
-    public async Task<ActionResult<PeripheralDto>> SetInUse(int id, UsePeripheralRequest request)
+    public async Task<PeripheralDto> SetInUse(int id, UsePeripheralRequest request)
     {
-        var peripheral = await _db.Peripherals.FindAsync(id);
-        if (peripheral is null) return NotFound();
-
+        var peripheral = await FindAsync(id);
         if (request.InUse && peripheral.ComputerId is null)
-            return BadRequest(new { message = "Plug the peripheral into a computer first." });
+            throw TrackerException.BadRequest("Plug the peripheral into a computer first.");
 
         peripheral.IsInUse = request.InUse;
-        peripheral.InUseSince = request.InUse ? DateTime.UtcNow : null;
+        peripheral.InUseSince = request.InUse ? _clock.UtcNow() : null;
 
         await _db.SaveChangesAsync();
-        return Ok(ToDto(peripheral));
+        return ToDto(peripheral);
+    }
+
+    private async Task<Peripheral> FindAsync(int id) =>
+        await _db.Peripherals.FindAsync(id) ?? throw TrackerException.NotFound("Peripheral not found.");
+
+    private async Task EnsureComputerExistsAsync(int? computerId)
+    {
+        if (computerId is not null && !await _db.Computers.AnyAsync(c => c.Id == computerId))
+            throw TrackerException.NotFound("Computer not found.");
     }
 
     private static PeripheralDto ToDto(Peripheral p) =>

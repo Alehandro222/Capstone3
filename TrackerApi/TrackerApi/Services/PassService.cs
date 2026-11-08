@@ -55,7 +55,7 @@ public class PassService
         pass.ExpiresAt = now.AddMinutes(_options.PassLifetimeMinutes);
 
         _db.Passes.Add(pass);
-        await SaveOrConflictAsync("That computer was just taken. Please choose another.");
+        await _db.SaveOrConflictAsync("That computer was just taken. Please choose another.");
         await tx.CommitAsync();
 
         return new CreatedPassDto(token, await GetForVisitorAsync(token));
@@ -150,7 +150,7 @@ public class PassService
         var session = _sessions.Begin(pass.ComputerId, FullName(pass), PurposeText(pass.Purpose), pass, now);
         _db.Sessions.Add(session);
 
-        await SaveOrConflictAsync($"{pass.Computer!.Name} already has an active session.");
+        await _db.SaveOrConflictAsync($"{pass.Computer!.Name} already has an active session.");
         await tx.CommitAsync();
 
         return await _sessions.GetAsync(session.Id);
@@ -181,7 +181,7 @@ public class PassService
         _db.Passes.Add(pass);
         _db.Sessions.Add(session);
 
-        await SaveOrConflictAsync("That computer was just taken.");
+        await _db.SaveOrConflictAsync("That computer was just taken.");
         await tx.CommitAsync();
 
         return await _sessions.GetAsync(session.Id);
@@ -320,16 +320,4 @@ public class PassService
         Purpose.GovernmentServices => "Government services",
         _ => "Other"
     };
-
-    private async Task SaveOrConflictAsync(string message)
-    {
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            throw TrackerException.Conflict(message);
-        }
-    }
 }

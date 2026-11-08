@@ -63,8 +63,10 @@ public class SessionService
 
     // ---- Starting ----------------------------------------------------------
 
-    // The old kiosk login form: name and purpose typed on the PC itself.
-    public async Task<SessionDto> StartFromKioskFormAsync(StartSessionRequest request)
+    // A session from a typed name and purpose, without a pass: the kiosk's own login
+    // form and the dashboard's "Start session". (Pass check-in and walk-ins record
+    // the full registration instead; see PassService.)
+    public async Task<SessionDto> StartByNameAsync(StartSessionRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Purpose))
             throw TrackerException.BadRequest("UserName and Purpose are required.");
@@ -82,7 +84,7 @@ public class SessionService
 
         var session = Begin(request.ComputerId, request.UserName.Trim(), request.Purpose.Trim(), null, _clock.UtcNow());
         _db.Sessions.Add(session);
-        await SaveOrConflictAsync("Someone else just started a session on this computer.");
+        await _db.SaveOrConflictAsync("Someone else just started a session on this computer.");
         await tx.CommitAsync();
 
         return await GetAsync(session.Id);
@@ -189,20 +191,6 @@ public class SessionService
         var (canExtend, reason) = CheckExtend(s, now, peopleWaiting);
         return new SessionDto(s.Id, s.ComputerId, s.UserName, s.Purpose, s.StartedAt, s.EndedAt,
             s.ScheduledEndAt, s.ExtensionCount, s.EndReason, s.PassId, canExtend, reason);
-    }
-
-    // Saves, turning a broken database rule (e.g. a second active session on
-    // the same PC, from two requests at the same moment) into a 409 Conflict.
-    private async Task SaveOrConflictAsync(string message)
-    {
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            throw TrackerException.Conflict(message);
-        }
     }
 
     public static string Describe(ComputerStatus status) => status switch

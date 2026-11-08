@@ -88,10 +88,6 @@ public partial class LockWindow : Window
                 ShowMessage("Reserved", "This computer is reserved for a visitor. Please check in at the help desk.");
                 break;
 
-            case KioskView.InUseElsewhere:
-                ShowMessage("Computer in use", "Please ask a staff member for help.");
-                break;
-
             case KioskView.InSession:
                 ShowMessage("Logged in", ""); // this window is hidden while a session runs
                 break;

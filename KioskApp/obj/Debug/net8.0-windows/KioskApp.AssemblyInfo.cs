@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ComputerTrackerKiosk")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2acfbd40e34343fbc8db63fa5d5108e2a161ad43")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c4c2357ba3bfc46d6571f54490d026f021b51cc3")]
 [assembly: System.Reflection.AssemblyProductAttribute("ComputerTrackerKiosk")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ComputerTrackerKiosk")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

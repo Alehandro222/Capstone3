@@ -13,7 +13,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddControllers(o => o.Filters.Add<TrackerExceptionFilter>()) // rule errors -> { "message": "..." }
     // Send enums as text ("InUse") instead of numbers (1) in JSON.
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+    // A request the API cannot read (e.g. a misspelled sector) also gets { "message": "..." }.
+    .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = TrackerExceptionFilter.UnreadableRequest);
 
 builder.Services.AddDbContext<TrackerDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
@@ -32,6 +34,7 @@ builder.Services.AddScoped<WaitlistService>();
 builder.Services.AddScoped<ProblemService>();
 builder.Services.AddScoped<StaffService>();
 builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<AssistService>();
 builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signed in
 
 // Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).
@@ -48,12 +51,8 @@ builder.Services.AddHostedService<CleanupService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Allow a Vite/React dev server on port 5173 to call this API from the browser.
-builder.Services.AddCors(options =>
-    options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod()));
+// No CORS: the websites reach the API through the Vite dev server's /api proxy
+// (and later from the same address), so the browser never makes cross-site calls.
 
 var app = builder.Build();
 
@@ -77,7 +76,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

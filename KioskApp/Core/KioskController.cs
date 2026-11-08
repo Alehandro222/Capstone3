@@ -16,7 +16,6 @@ public enum KioskView
     NeedsSetup,      // staff must pair this PC (type a pairing code)
     Locked,          // available: show the login screen
     OutOfService,    // marked "Not working" by staff
-    InUseElsewhere,  // in use, but not by a session we can see
     Reserved,        // a visitor holds a pass for this PC; staff will check them in
     InSession,       // someone is logged in: show the small session bar
     Farewell         // just logged out: "Thank you" for a few seconds
@@ -349,8 +348,8 @@ public sealed class KioskController
                 new KioskState(KioskView.Reserved, _computer, Offline: _offline),
             ComputerStatus.InUse when _session is not null =>
                 new KioskState(KioskView.InSession, _computer, _session, Offline: _offline, IdleSecondsLeft: _idleSecondsLeft),
-            ComputerStatus.InUse =>
-                new KioskState(KioskView.InUseElsewhere, _computer, Offline: _offline),
+            ComputerStatus.InUse => // the session was just created; it arrives on the next refresh
+                new KioskState(KioskView.Loading, _computer, Offline: _offline),
             _ =>
                 new KioskState(KioskView.Locked, _computer, Offline: _offline)
         };

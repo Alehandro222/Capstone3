@@ -45,7 +45,7 @@ public class ComputersController : ControllerBase
     public async Task<ActionResult<ComputerDto>> GetById(int id)
     {
         var list = await _status.GetStaffViewAsync(id);
-        if (list.Count == 0) return NotFound();
+        if (list.Count == 0) throw TrackerException.NotFound("Computer not found.");
         return list[0];
     }
 
@@ -55,9 +55,9 @@ public class ComputersController : ControllerBase
     public async Task<ActionResult<ComputerDto>> Create(CreateComputerRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { message = "Name is required." });
+            throw TrackerException.BadRequest("Name is required.");
         if (request.Name.Trim().Length > 50)
-            return BadRequest(new { message = "Name must be 50 characters or fewer." });
+            throw TrackerException.BadRequest("Name must be 50 characters or fewer.");
 
         var computer = new Computer { Name = request.Name.Trim() };
         _db.Computers.Add(computer);
@@ -94,7 +94,7 @@ public class ComputersController : ControllerBase
     [HttpGet("{id:int}/sessions")]
     public async Task<ActionResult<List<SessionDto>>> History(int id, [FromQuery] int limit = 100)
     {
-        if (!await _db.Computers.AnyAsync(c => c.Id == id)) return NotFound();
+        if (!await _db.Computers.AnyAsync(c => c.Id == id)) throw TrackerException.NotFound("Computer not found.");
         return await _sessions.GetHistoryAsync(id, null, null, limit);
     }
 
@@ -104,13 +104,13 @@ public class ComputersController : ControllerBase
     [HttpPut("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateComputerStatusRequest request)
     {
-        if (!await _db.Computers.AnyAsync(c => c.Id == id)) return NotFound();
+        if (!await _db.Computers.AnyAsync(c => c.Id == id)) throw TrackerException.NotFound("Computer not found.");
 
         switch (request.Status)
         {
             case ComputerStatus.Maintenance:
                 if (await _db.Sessions.AnyAsync(s => s.ComputerId == id && s.EndedAt == null))
-                    return Conflict(new { message = "End the active session first." });
+                    throw TrackerException.Conflict("End the active session first.");
                 if (!await _db.ProblemReports.AnyAsync(r => r.ComputerId == id && r.Status == ProblemStatus.Open))
                 {
                     var report = await _problems.OpenAsync(new CreateProblemRequest(id, "Marked out of service from the dashboard."));
@@ -124,7 +124,7 @@ public class ComputersController : ControllerBase
                 return NoContent();
 
             default:
-                return BadRequest(new { message = "Only Maintenance or Available can be set by hand." });
+                throw TrackerException.BadRequest("Only Maintenance or Available can be set by hand.");
         }
     }
 }

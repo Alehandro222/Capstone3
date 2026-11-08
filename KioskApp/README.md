@@ -40,7 +40,7 @@ If `dotnet run` says the target framework is not installed, open `KioskApp.cspro
 | `idleWarningSeconds` | Show a warning during the last N seconds. | `60` |
 | `refreshSeconds` | How often to check the tracker for changes made by staff. | `5` |
 
-Leave `computerId` as `0`. Pairing saves which PC this is in `C:\ProgramData\ComputerTracker\computer-id.txt`, and the PC's own secret key in `kiosk-key.txt` next to it. The key only works as this PC. If you think it was copied, pair the PC again: that cancels the old key.
+Pairing saves which PC this is in `C:\ProgramData\ComputerTracker\computer-id.txt`, and the PC's own secret key in `kiosk-key.txt` next to it. The key only works as this PC. If you think it was copied, pair the PC again: that cancels the old key.
 
 ## Staff shortcut
 

@@ -23,10 +23,12 @@ public class KioskController : ControllerBase
     private readonly SessionService _sessions;
     private readonly KioskPairingService _pairing;
     private readonly AuditService _audit;
+    private readonly AssistService _assist;
 
     public KioskController(TrackerDbContext db, TimeProvider clock, ComputerStatusService status,
-        SessionService sessions, KioskPairingService pairing, AuditService audit)
+        SessionService sessions, KioskPairingService pairing, AuditService audit, AssistService assist)
     {
+        _assist = assist;
         _db = db;
         _clock = clock;
         _status = status;
@@ -68,7 +70,7 @@ public class KioskController : ControllerBase
     [HttpPost("sessions")]
     public async Task<SessionDto> Start(KioskStartSessionRequest request)
     {
-        var session = await _sessions.StartFromKioskFormAsync(
+        var session = await _sessions.StartByNameAsync(
             new StartSessionRequest(ComputerId, request.UserName, request.Purpose));
         await _audit.RecordAsync("session.start", "Session", session.Id, $"computer {ComputerId}, {session.UserName}");
         return session;
@@ -102,20 +104,7 @@ public class KioskController : ControllerBase
 
     // POST api/kiosk/help   body: { "message": "I can't print" } -> the "Need help?" button
     [HttpPost("help")]
-    public async Task<AssistDto> Help(KioskHelpRequest request)
-    {
-        var message = request.Message?.Trim();
-        if (string.IsNullOrEmpty(message)) throw TrackerException.BadRequest("Please describe what you need help with.");
-        if (message.Length > 500) throw TrackerException.BadRequest("Please keep it under 500 characters.");
-
-        var computer = await _db.Computers.FindAsync(ComputerId);
-        var ticket = new AssistTicket { ComputerId = ComputerId, Computer = computer, Message = message, CreatedAt = _clock.UtcNow() };
-        _db.AssistTickets.Add(ticket);
-        await _db.SaveChangesAsync();
-
-        return new AssistDto(ticket.Id, ticket.ComputerId, computer!.Name, ticket.Message, ticket.Status,
-            ticket.CreatedAt, ticket.ResolvedAt);
-    }
+    public Task<AssistDto> Help(KioskHelpRequest request) => _assist.CreateAsync(ComputerId, request.Message);
 
     private async Task<SessionDto> CurrentSessionAsync() =>
         await _sessions.GetActiveOnComputerAsync(ComputerId)

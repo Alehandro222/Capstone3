@@ -1,6 +1,5 @@
 {
   "apiUrl": "http://localhost:5080/",
-  "computerId": 0,
   "kioskMode": false,
   "staffPin": "",
   "idleTimeoutSeconds": 1200,

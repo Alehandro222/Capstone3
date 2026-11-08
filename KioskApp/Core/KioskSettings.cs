@@ -26,8 +26,9 @@ public sealed class KioskSettings
     [JsonIgnore]
     public bool IsPaired => ComputerId > 0 && !string.IsNullOrEmpty(KioskKey);
 
-    // The id of this computer in the tracker (see PC-01, PC-02... on the dashboard).
-    // 0 = not chosen yet; the app shows a setup screen.
+    // Which PC in the tracker this is (PC-04 = 4). Set by pairing and saved in the
+    // data folder (computer-id.txt), never in kiosk.settings.json. 0 = not paired yet.
+    [JsonIgnore]
     public int ComputerId { get; set; }
 
     // false = a normal window (easy for testing). true = fullscreen, always on top, cannot be closed.

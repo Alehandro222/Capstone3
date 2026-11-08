@@ -18,6 +18,6 @@ public class AssistTicket
     public string Message { get; set; } = string.Empty;
     public AssistStatus Status { get; set; } = AssistStatus.Open;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
 }
