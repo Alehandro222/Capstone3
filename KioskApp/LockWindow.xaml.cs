@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using KioskApp.Core;
 
@@ -15,7 +16,6 @@ public partial class LockWindow : Window
 {
     private readonly KioskController _controller;
     private KioskView? _lastView;
-    private string _purpose = "";
     private bool _busy;
     private int _noticeId;
     private bool _staffMode;   // true while the staff PIN / menu panels are open
@@ -62,7 +62,7 @@ public partial class LockWindow : Window
         switch (state.View)
         {
             case KioskView.Locked:
-                LoginIntro.Text = $"Log in to start using {state.Computer?.Name}.";
+                LoginIntro.Text = $"{state.Computer?.Name} is free.";
                 ShowPanel(LoginPanel);
                 if (enteringLogin) ResetLoginForm();
                 break;
@@ -100,7 +100,7 @@ public partial class LockWindow : Window
 
     private void ShowPanel(UIElement panel)
     {
-        foreach (var p in new UIElement[] { MessagePanel, LoginPanel, SetupPanel, StaffPinPanel, StaffMenuPanel })
+        foreach (var p in new UIElement[] { MessagePanel, LoginPanel, RegisterPanel, SetupPanel, StaffPinPanel, StaffMenuPanel })
         {
             p.Visibility = ReferenceEquals(p, panel) ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -116,56 +116,60 @@ public partial class LockWindow : Window
 
     private void ResetLoginForm()
     {
-        NameBox.Clear();
-        OtherBox.Clear();
-        OtherBox.Visibility = Visibility.Collapsed;
         LoginError.Text = "";
         LoginNotice.Visibility = Visibility.Collapsed;
-        _purpose = "";
-        foreach (var radio in PurposePanel.Children.OfType<RadioButton>())
+    }
+
+    // ---- Staff: register a visitor on this PC ---------------------------------
+
+    private void RegisterVisitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (_controller.State.View != KioskView.Locked)
         {
-            radio.IsChecked = false;
+            StaffMenuError.Text = "This computer is not free right now.";
+            return;
         }
-        NameBox.Focus();
+
+        FirstNameBox.Clear();
+        LastNameBox.Clear();
+        foreach (var panel in new[] { AgePanel, SexPanel, SectorPanel, ServicePanel })
+            foreach (var chip in panel.Children.OfType<ToggleButton>())
+                chip.IsChecked = false;
+        RegisterError.Text = "";
+        ShowPanel(RegisterPanel);
+        FirstNameBox.Focus();
     }
 
-    // ---- Login -------------------------------------------------------------
-
-    private void Purpose_Checked(object sender, RoutedEventArgs e)
-    {
-        if (sender is not RadioButton radio) return;
-
-        _purpose = radio.Content?.ToString() ?? "";
-        var isOther = _purpose == "Other";
-        OtherBox.Visibility = isOther ? Visibility.Visible : Visibility.Collapsed;
-        if (isOther) OtherBox.Focus();
-    }
-
-    private void Login_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter) SubmitLogin();
-    }
-
-    private void LoginButton_Click(object sender, RoutedEventArgs e) => SubmitLogin();
-
-    private async void SubmitLogin()
+    private async void RegisterButton_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
 
-        var purpose = _purpose == "Other" ? OtherBox.Text : _purpose;
+        var registration = new KioskRegistration(
+            FirstNameBox.Text,
+            LastNameBox.Text,
+            Selected(AgePanel).FirstOrDefault() ?? "",
+            Selected(SexPanel).FirstOrDefault() ?? "",
+            Selected(SectorPanel),
+            Selected(ServicePanel));
 
         _busy = true;
-        LoginButton.IsEnabled = false;
-        LoginButton.Content = "Logging in…";
-        LoginError.Text = "";
+        RegisterButton.IsEnabled = false;
+        RegisterError.Text = "";
 
-        var error = await _controller.LoginAsync(NameBox.Text, purpose);
+        var error = await _controller.RegisterAndStartAsync(registration);
 
         _busy = false;
-        LoginButton.IsEnabled = true;
-        LoginButton.Content = "Log in and start";
-        if (error is not null) LoginError.Text = error;
+        RegisterButton.IsEnabled = true;
+        if (error is null) LeaveStaffMode(); // the session view takes over
+        else RegisterError.Text = error;
     }
+
+    // The API values (Tag) of the chips that are ticked.
+    private static List<string> Selected(Panel panel) =>
+        panel.Children.OfType<ToggleButton>()
+            .Where(chip => chip.IsChecked == true)
+            .Select(chip => chip.Tag?.ToString() ?? "")
+            .ToList();
 
     // ---- Help (before logging in) -------------------------------------------
 
@@ -234,6 +238,7 @@ public partial class LockWindow : Window
     private void OpenStaffPin()
     {
         _staffMode = true;
+        StaffMenuError.Text = "";
         PinBox.Clear();
         PinError.Text = "";
         ShowPanel(StaffPinPanel);

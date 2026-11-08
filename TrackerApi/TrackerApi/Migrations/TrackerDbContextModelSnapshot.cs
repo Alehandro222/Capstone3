@@ -203,9 +203,6 @@ namespace TrackerApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Age")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(6)
@@ -220,40 +217,16 @@ namespace TrackerApi.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsWalkIn")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Sex")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("UsedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("VisitId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -265,24 +238,11 @@ namespace TrackerApi.Migrations
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Pending'");
 
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
+                    b.HasIndex("VisitId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Pending'");
 
                     b.ToTable("Passes");
-                });
-
-            modelBuilder.Entity("TrackerApi.Models.PassSector", b =>
-                {
-                    b.Property<int>("PassId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Sector")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("PassId", "Sector");
-
-                    b.ToTable("PassSectors");
                 });
 
             modelBuilder.Entity("TrackerApi.Models.Peripheral", b =>
@@ -488,21 +448,14 @@ namespace TrackerApi.Migrations
                     b.Property<int?>("PassId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("ScheduledEndAt")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("UserName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
+                    b.Property<int>("VisitId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -513,7 +466,91 @@ namespace TrackerApi.Migrations
                     b.HasIndex("PassId")
                         .IsUnique();
 
+                    b.HasIndex("VisitId")
+                        .IsUnique()
+                        .HasFilter("\"EndedAt\" IS NULL");
+
                     b.ToTable("Sessions");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.Visit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeGroup")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sex")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("Visits");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.VisitSector", b =>
+                {
+                    b.Property<int>("VisitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sector")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("VisitId", "Sector");
+
+                    b.ToTable("VisitSectors");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.VisitServiceAvailed", b =>
+                {
+                    b.Property<int>("VisitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Service")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("VisitId", "Service");
+
+                    b.ToTable("VisitServices");
                 });
 
             modelBuilder.Entity("TrackerApi.Models.WaitlistEntry", b =>
@@ -531,23 +568,19 @@ namespace TrackerApi.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("FirstName")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
+                    b.Property<int>("VisitId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
+                    b.HasIndex("VisitId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Waiting'");
 
                     b.ToTable("WaitlistEntries");
                 });
@@ -571,18 +604,15 @@ namespace TrackerApi.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Computer");
-                });
-
-            modelBuilder.Entity("TrackerApi.Models.PassSector", b =>
-                {
-                    b.HasOne("TrackerApi.Models.Pass", "Pass")
-                        .WithMany("Sectors")
-                        .HasForeignKey("PassId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("TrackerApi.Models.Visit", "Visit")
+                        .WithMany("Passes")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Pass");
+                    b.Navigation("Computer");
+
+                    b.Navigation("Visit");
                 });
 
             modelBuilder.Entity("TrackerApi.Models.Peripheral", b =>
@@ -617,9 +647,50 @@ namespace TrackerApi.Migrations
                         .WithOne("Session")
                         .HasForeignKey("TrackerApi.Models.UsageSession", "PassId");
 
+                    b.HasOne("TrackerApi.Models.Visit", "Visit")
+                        .WithMany("Sessions")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Computer");
 
                     b.Navigation("Pass");
+
+                    b.Navigation("Visit");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.VisitSector", b =>
+                {
+                    b.HasOne("TrackerApi.Models.Visit", "Visit")
+                        .WithMany("Sectors")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Visit");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.VisitServiceAvailed", b =>
+                {
+                    b.HasOne("TrackerApi.Models.Visit", "Visit")
+                        .WithMany("Services")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Visit");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.WaitlistEntry", b =>
+                {
+                    b.HasOne("TrackerApi.Models.Visit", "Visit")
+                        .WithMany("WaitlistEntries")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Visit");
                 });
 
             modelBuilder.Entity("TrackerApi.Models.Computer", b =>
@@ -635,9 +706,20 @@ namespace TrackerApi.Migrations
 
             modelBuilder.Entity("TrackerApi.Models.Pass", b =>
                 {
+                    b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("TrackerApi.Models.Visit", b =>
+                {
+                    b.Navigation("Passes");
+
                     b.Navigation("Sectors");
 
-                    b.Navigation("Session");
+                    b.Navigation("Services");
+
+                    b.Navigation("Sessions");
+
+                    b.Navigation("WaitlistEntries");
                 });
 #pragma warning restore 612, 618
         }

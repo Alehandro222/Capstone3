@@ -55,6 +55,13 @@ public class ComputerStatusService
     {
         var statuses = await GetAllAsync();
 
+        // Running sessions with the visitor's name and services.
+        var active = (await _db.Sessions
+                .Include(s => s.Visit!).ThenInclude(v => v.Services)
+                .Where(s => s.EndedAt == null && (id == null || s.ComputerId == id))
+                .ToListAsync())
+            .ToDictionary(s => s.ComputerId);
+
         var computers = await _db.Computers
             .Where(c => id == null || c.Id == id)
             .OrderBy(c => c.Id)
@@ -63,8 +70,6 @@ public class ComputerStatusService
                 c.Id,
                 c.Name,
                 c.LastHeartbeatAt,
-                Session = c.Sessions.Where(s => s.EndedAt == null)
-                    .Select(s => new { s.Id, s.UserName, s.Purpose, s.ScheduledEndAt }).FirstOrDefault(),
                 Problem = c.ProblemReports.Where(r => r.Status == ProblemStatus.Open)
                     .OrderBy(r => r.CreatedAt).Select(r => r.Description).FirstOrDefault(),
                 Peripherals = c.Peripherals
@@ -73,17 +78,21 @@ public class ComputerStatusService
             })
             .ToListAsync();
 
-        return computers.Select(c => new ComputerDto(
-            c.Id,
-            c.Name,
-            statuses[c.Id],
-            c.Session?.UserName,
-            c.Session?.Purpose,
-            c.Peripherals,
-            c.LastHeartbeatAt,
-            c.Session?.Id,
-            c.Session?.ScheduledEndAt,
-            c.Problem)).ToList();
+        return computers.Select(c =>
+        {
+            var session = active.GetValueOrDefault(c.Id);
+            return new ComputerDto(
+                c.Id,
+                c.Name,
+                statuses[c.Id],
+                session?.Visit!.FullName,
+                session is null ? null : Registration.ServicesText(session.Visit!.Services),
+                c.Peripherals,
+                c.LastHeartbeatAt,
+                session?.Id,
+                session?.ScheduledEndAt,
+                c.Problem);
+        }).ToList();
     }
 
     // Status of one computer. Throws 404 if it does not exist.

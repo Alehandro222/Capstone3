@@ -2,11 +2,14 @@
 
 The program that runs on each office computer.
 
-1. **Nobody logged in:** a fullscreen login screen asks for the user's name and what they will use the computer for. A **Need help?** button on this screen lets someone who cannot log in ask staff for help.
-2. **Logged in:** the login screen hides and a small box stays in the corner of the screen (name, timer, **Need help?**, **Log out**). The user then uses the computer normally.
-3. **Logged out, or idle too long:** the login screen comes back.
+1. **Free:** a fullscreen screen tells visitors how to get this PC: scan the QR code at the entrance, register and pick this PC on their phone, then show the QR pass at the help desk. A **Need help?** button asks staff for help.
+2. **Reserved:** someone picked this PC and is on their way to the help desk.
+3. **In use:** when staff scan the pass, the screen hides and a small box stays in the corner (name, timer, **Need help?**, **Log out**). The visitor then uses the computer normally.
+4. **Logged out, idle for 20 minutes, or out of time:** the lock screen comes back.
 
-Everything is recorded through TrackerApi, so the staff dashboard shows the computer as In use, with the name and purpose, within a few seconds.
+**Staff-only form on the PC:** for a visitor whose phone died, staff press **Ctrl + Shift + Q**, enter the PIN and choose **Register a visitor on this computer**. It's the same form as the phone's (name, age group, sex, sectors, services), and the session starts here straight away.
+
+Everything is recorded through TrackerApi, so the staff dashboard shows the computer as In use, with the visitor's name and services, within a few seconds.
 
 ## Requirements
 
@@ -17,7 +20,7 @@ Everything is recorded through TrackerApi, so the staff dashboard shows the comp
 
 ## Try it on your own PC
 
-1. Start the API (in the `TrackerApi` folder): `dotnet run`
+1. Start the API (in the inner `TrackerApi/TrackerApi` folder, where `TrackerApi.csproj` is): `dotnet run`
 2. In this folder (`KioskApp`):
 
 ```
@@ -25,7 +28,7 @@ dotnet run
 ```
 
 3. The first time, a **Set up this computer** screen asks for a **pairing code**. An admin gets one for the PC (for example PC-01) from the API: sign in at http://localhost:5080/swagger, then call `POST /api/computers/1/pairing-code`. Type the code in and press **Pair this computer**. The pairing is remembered. (A dashboard button for this comes later.)
-4. Log in with a name and purpose, then check the dashboard at http://localhost:5173.
+4. To start a session without the phone app (phase 3), use the staff-only form: **Ctrl + Shift + Q**, then **Register a visitor on this computer**. (With `kioskMode` `false` and no `staffPin`, any PIN works.) Then check the dashboard at http://localhost:5173.
 
 If `dotnet run` says the target framework is not installed, open `KioskApp.csproj` and change `net8.0-windows` to your version plus `-windows`, for example `net9.0-windows`.
 
@@ -44,7 +47,7 @@ Pairing saves which PC this is in `C:\ProgramData\ComputerTracker\computer-id.tx
 
 ## Staff shortcut
 
-Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can unpair this computer (the setup screen shows again), or exit the kiosk.
+Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can register a visitor on this computer, unpair this computer (the setup screen shows again), or exit the kiosk.
 
 ## Deploying to the office computers
 

@@ -35,17 +35,6 @@ public class SessionsController : ControllerBase
     [HttpGet("{id:int}")]
     public Task<SessionDto> Get(int id) => _sessions.GetAsync(id);
 
-    // POST api/sessions/start   (the dashboard's "Start session": name + purpose typed by staff)
-    // body: { "computerId": 1, "userName": "Maria", "purpose": "Job application" }
-    [HttpPost("start")]
-    public async Task<SessionDto> Start(StartSessionRequest request)
-    {
-        var session = await _sessions.StartByNameAsync(request);
-        await _audit.RecordAsync("session.start", "Session", session.Id,
-            $"computer {session.ComputerId}, {session.UserName}");
-        return session;
-    }
-
     // POST api/sessions/5/end   body (optional): { "reason": "Idle" }
     // Frees the computer and its peripherals. Without a reason it counts as ended by staff.
     [HttpPost("{id:int}/end")]

@@ -5,28 +5,30 @@ using TrackerApi.Models;
 
 namespace TrackerApi.Services;
 
-// Starting, ending and extending sessions.
+// Starting, ending and extending sessions. Every session belongs to a visit,
+// so its name and purpose always come from the registration form.
 public class SessionService
 {
     private readonly TrackerDbContext _db;
     private readonly TimeProvider _clock;
     private readonly TrackerOptions _options;
-    private readonly ComputerStatusService _status;
 
-    public SessionService(TrackerDbContext db, TimeProvider clock, IOptions<TrackerOptions> options,
-        ComputerStatusService status)
+    public SessionService(TrackerDbContext db, TimeProvider clock, IOptions<TrackerOptions> options)
     {
         _db = db;
         _clock = clock;
         _options = options.Value;
-        _status = status;
     }
+
+    // Sessions with the visit details their DTO needs.
+    private IQueryable<UsageSession> WithVisit() =>
+        _db.Sessions.Include(s => s.Visit!).ThenInclude(v => v.Services);
 
     // ---- Reading -----------------------------------------------------------
 
     public async Task<List<SessionDto>> GetActiveAsync()
     {
-        var sessions = await _db.Sessions
+        var sessions = await WithVisit()
             .Where(s => s.EndedAt == null)
             .OrderBy(s => s.StartedAt)
             .ToListAsync();
@@ -36,7 +38,7 @@ public class SessionService
     // Session history, newest first. All filters are optional.
     public async Task<List<SessionDto>> GetHistoryAsync(int? computerId, DateTime? from, DateTime? to, int limit)
     {
-        var query = _db.Sessions.AsQueryable();
+        var query = WithVisit();
         if (computerId is not null) query = query.Where(s => s.ComputerId == computerId);
         if (from is not null) query = query.Where(s => s.StartedAt >= from);
         if (to is not null) query = query.Where(s => s.StartedAt < to);
@@ -48,55 +50,27 @@ public class SessionService
         return await ToDtosAsync(sessions);
     }
 
+    public async Task<SessionDto> GetAsync(int id)
+    {
+        var session = await FindAsync(id);
+        return (await ToDtosAsync(new[] { session }))[0];
+    }
+
     // The running session on one PC, or null.
     public async Task<SessionDto?> GetActiveOnComputerAsync(int computerId)
     {
-        var session = await _db.Sessions.FirstOrDefaultAsync(s => s.ComputerId == computerId && s.EndedAt == null);
+        var session = await WithVisit().FirstOrDefaultAsync(s => s.ComputerId == computerId && s.EndedAt == null);
         return session is null ? null : (await ToDtosAsync(new[] { session }))[0];
-    }
-
-    public async Task<SessionDto> GetAsync(int id)
-    {
-        var session = await _db.Sessions.FindAsync(id) ?? throw TrackerException.NotFound("Session not found.");
-        return (await ToDtosAsync(new[] { session }))[0];
     }
 
     // ---- Starting ----------------------------------------------------------
 
-    // A session from a typed name and purpose, without a pass: the kiosk's own login
-    // form and the dashboard's "Start session". (Pass check-in and walk-ins record
-    // the full registration instead; see PassService.)
-    public async Task<SessionDto> StartByNameAsync(StartSessionRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Purpose))
-            throw TrackerException.BadRequest("UserName and Purpose are required.");
-        if (request.UserName.Trim().Length > 100)
-            throw TrackerException.BadRequest("Name must be 100 characters or fewer.");
-        if (request.Purpose.Trim().Length > 200)
-            throw TrackerException.BadRequest("Purpose must be 200 characters or fewer.");
-
-        // A transaction makes "check the PC is free, then start" one all-or-nothing step.
-        await using var tx = await _db.Database.BeginTransactionAsync();
-
-        var status = await _status.GetAsync(request.ComputerId);
-        if (status != ComputerStatus.Available)
-            throw TrackerException.Conflict($"Computer is {Describe(status)}.");
-
-        var session = Begin(request.ComputerId, request.UserName.Trim(), request.Purpose.Trim(), null, _clock.UtcNow());
-        _db.Sessions.Add(session);
-        await _db.SaveOrConflictAsync("Someone else just started a session on this computer.");
-        await tx.CommitAsync();
-
-        return await GetAsync(session.Id);
-    }
-
-    // Builds a new session (the caller adds it and saves). Used by passes too.
-    public UsageSession Begin(int computerId, string userName, string purpose, Pass? pass, DateTime now) => new()
+    // Builds a new session (the caller adds it and saves, inside its transaction).
+    public UsageSession Begin(int computerId, Visit visit, Pass? pass, DateTime now) => new()
     {
         ComputerId = computerId,
+        Visit = visit,
         Pass = pass,
-        UserName = userName,
-        Purpose = purpose,
         StartedAt = now,
         ScheduledEndAt = now.AddMinutes(_options.SessionMinutes)
     };
@@ -105,7 +79,7 @@ public class SessionService
 
     public async Task<SessionDto> EndAsync(int id, SessionEndReason reason)
     {
-        var session = await _db.Sessions.FindAsync(id) ?? throw TrackerException.NotFound("Session not found.");
+        var session = await FindAsync(id);
         if (session.EndedAt is not null) throw TrackerException.Conflict("Session already ended.");
 
         await EndTrackedAsync(session, reason, _clock.UtcNow());
@@ -148,7 +122,7 @@ public class SessionService
 
     public async Task<SessionDto> ExtendAsync(int id)
     {
-        var session = await _db.Sessions.FindAsync(id) ?? throw TrackerException.NotFound("Session not found.");
+        var session = await FindAsync(id);
         var now = _clock.UtcNow();
 
         var (canExtend, reason) = CheckExtend(session, now, await CountWaitingAsync(now));
@@ -179,6 +153,9 @@ public class SessionService
 
     // ---- Helpers -----------------------------------------------------------
 
+    private async Task<UsageSession> FindAsync(int id) =>
+        await WithVisit().FirstOrDefaultAsync(s => s.Id == id) ?? throw TrackerException.NotFound("Session not found.");
+
     public async Task<List<SessionDto>> ToDtosAsync(IEnumerable<UsageSession> sessions)
     {
         var now = _clock.UtcNow();
@@ -186,11 +163,13 @@ public class SessionService
         return sessions.Select(s => ToDto(s, now, waiting)).ToList();
     }
 
+    // The session must have been loaded with its visit and services (see WithVisit).
     public SessionDto ToDto(UsageSession s, DateTime now, int peopleWaiting)
     {
         var (canExtend, reason) = CheckExtend(s, now, peopleWaiting);
-        return new SessionDto(s.Id, s.ComputerId, s.UserName, s.Purpose, s.StartedAt, s.EndedAt,
-            s.ScheduledEndAt, s.ExtensionCount, s.EndReason, s.PassId, canExtend, reason);
+        return new SessionDto(s.Id, s.ComputerId, s.Visit!.FullName, Registration.ServicesText(s.Visit.Services),
+            s.StartedAt, s.EndedAt, s.ScheduledEndAt, s.ExtensionCount, s.EndReason, s.PassId, canExtend, reason,
+            s.VisitId);
     }
 
     public static string Describe(ComputerStatus status) => status switch

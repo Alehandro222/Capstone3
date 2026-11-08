@@ -3,6 +3,7 @@ import { api } from './api'
 import ComputerCard from './components/ComputerCard.jsx'
 import HelpRequests from './components/HelpRequests.jsx'
 import Modal from './components/Modal.jsx'
+import WalkInDialog from './components/WalkInDialog.jsx'
 import './help.css'
 
 const REFRESH_MS = 5000 // re-fetch every 5 seconds so the board stays current
@@ -89,6 +90,9 @@ export default function App({ me, onSignOut }) {
             Signed in as <strong>{me.fullName}</strong> ({me.role})
             <button className="link-button" onClick={onSignOut}>Sign out</button>
           </p>
+          <button className="btn log-visit" onClick={() => setDialog({ type: 'visit' })}>
+            Log a visit (no computer)
+          </button>
         </div>
         <div className="summary">
           <Stat label="Available" value={count('Available')} tone="available" />
@@ -143,19 +147,16 @@ export default function App({ me, onSignOut }) {
         ))}
       </main>}
 
-      {dialog?.type === 'start' && (
-        <Modal
-          title={`Start session on ${dialog.computer.name}`}
-          fields={[
-            { name: 'userName', label: 'Who is using the computer?', placeholder: 'Full name' },
-            { name: 'purpose', label: 'What will you use it for?', placeholder: 'e.g. Job application, school work' },
-          ]}
-          submitLabel="Start session"
+      {(dialog?.type === 'start' || dialog?.type === 'visit') && (
+        <WalkInDialog
+          computer={dialog.computer}
           onCancel={() => setDialog(null)}
-          onSubmit={async (v) => {
+          onSubmit={async (registration) => {
             const ok = await run(
-              () => api.startSession(dialog.computer.id, v.userName, v.purpose),
-              `Session started on ${dialog.computer.name}`,
+              () => api.walkIn(registration),
+              dialog.computer
+                ? `Session started on ${dialog.computer.name}`
+                : `Visit logged for ${registration.firstName}`,
             )
             if (ok) setDialog(null)
           }}

@@ -36,10 +36,10 @@ export const api = {
   logout: () => send('POST', '/api/auth/logout'),
 
   getComputers: () => request('/api/computers'),
-  getComputer: (id) => request(`/api/computers/${id}`),
   getActiveSessions: () => request('/api/sessions/active'),
-  startSession: (computerId, userName, purpose) =>
-    send('POST', '/api/sessions/start', { computerId, userName, purpose }),
+  // Staff register a visitor at the desk. With computerId the session starts
+  // right away; without it the visit is only logged.
+  walkIn: (registration) => send('POST', '/api/visits/walk-in', registration),
   endSession: (sessionId) => send('POST', `/api/sessions/${sessionId}/end`),
   setComputerStatus: (computerId, status) =>
     send('PUT', `/api/computers/${computerId}/status`, { status }),

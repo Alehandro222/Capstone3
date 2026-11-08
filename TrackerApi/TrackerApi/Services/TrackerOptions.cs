@@ -6,6 +6,10 @@ public class TrackerOptions
 {
     public const string Section = "Tracker";
 
+    // How long a registration stays usable on the visitor's phone (pick a PC,
+    // join the waitlist, end the session). After that they register again.
+    public int VisitLifetimeHours { get; set; } = 12;
+
     // How long a visitor has to get their pass scanned at the desk.
     public int PassLifetimeMinutes { get; set; } = 10;
 

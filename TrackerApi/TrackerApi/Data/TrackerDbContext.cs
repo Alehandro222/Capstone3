@@ -16,8 +16,10 @@ public class TrackerDbContext : DbContext
     public DbSet<Peripheral> Peripherals => Set<Peripheral>();
     public DbSet<UsageSession> Sessions => Set<UsageSession>();
     public DbSet<AssistTicket> AssistTickets => Set<AssistTicket>();
+    public DbSet<Visit> Visits => Set<Visit>();
+    public DbSet<VisitSector> VisitSectors => Set<VisitSector>();
+    public DbSet<VisitServiceAvailed> VisitServices => Set<VisitServiceAvailed>();
     public DbSet<Pass> Passes => Set<Pass>();
-    public DbSet<PassSector> PassSectors => Set<PassSector>();
     public DbSet<ProblemReport> ProblemReports => Set<ProblemReport>();
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<Staff> Staff => Set<Staff>();
@@ -68,8 +70,23 @@ public class TrackerDbContext : DbContext
             .IsUnique()
             .HasFilter("\"Status\" = 'Pending'");
 
-        modelBuilder.Entity<Pass>().HasIndex(p => p.TokenHash).IsUnique();
-        modelBuilder.Entity<WaitlistEntry>().HasIndex(w => w.TokenHash).IsUnique();
+        // One visitor, one PC at a time: at most one pending pass, one active
+        // session and one place on the waitlist per visit.
+        modelBuilder.Entity<Pass>()
+            .HasIndex(p => p.VisitId)
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+        modelBuilder.Entity<UsageSession>()
+            .HasIndex(s => s.VisitId)
+            .IsUnique()
+            .HasFilter("\"EndedAt\" IS NULL");
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasIndex(w => w.VisitId)
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Waiting'");
+
+        modelBuilder.Entity<Visit>().HasIndex(v => v.TokenHash).IsUnique();
+        modelBuilder.Entity<Visit>().HasIndex(v => v.CreatedAt); // daily log and reports
 
         // A session points to at most one pass, and a pass to at most one session.
         modelBuilder.Entity<UsageSession>()
@@ -77,8 +94,17 @@ public class TrackerDbContext : DbContext
             .WithOne(p => p.Session)
             .HasForeignKey<UsageSession>(s => s.PassId);
 
-        // A visitor's sectors: one row per (pass, sector), no duplicates.
-        modelBuilder.Entity<PassSector>().HasKey(ps => new { ps.PassId, ps.Sector });
+        // A visitor's sectors and services: one row each, no duplicates.
+        modelBuilder.Entity<VisitSector>().HasKey(vs => new { vs.VisitId, vs.Sector });
+        modelBuilder.Entity<VisitServiceAvailed>().HasKey(vs => new { vs.VisitId, vs.Service });
+
+        // Visits are never deleted while anything points to them.
+        modelBuilder.Entity<Pass>().HasOne(p => p.Visit).WithMany(v => v.Passes)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<UsageSession>().HasOne(s => s.Visit).WithMany(v => v.Sessions)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<WaitlistEntry>().HasOne(w => w.Visit).WithMany(v => v.WaitlistEntries)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Never delete a computer that has history. (Foreign keys already make every
         // pass, session and report point to a real computer.)
@@ -93,13 +119,10 @@ public class TrackerDbContext : DbContext
         modelBuilder.Entity<Computer>().Property(c => c.Name).HasMaxLength(50);
         modelBuilder.Entity<Computer>().Property(c => c.KioskKeyHash).HasMaxLength(64);
         modelBuilder.Entity<Computer>().Property(c => c.PairingCodeHash).HasMaxLength(64);
-        modelBuilder.Entity<Pass>().Property(p => p.FirstName).HasMaxLength(100);
-        modelBuilder.Entity<Pass>().Property(p => p.LastName).HasMaxLength(100);
+        modelBuilder.Entity<Visit>().Property(v => v.FirstName).HasMaxLength(100);
+        modelBuilder.Entity<Visit>().Property(v => v.LastName).HasMaxLength(100);
+        modelBuilder.Entity<Visit>().Property(v => v.TokenHash).HasMaxLength(64);
         modelBuilder.Entity<Pass>().Property(p => p.Code).HasMaxLength(6);
-        modelBuilder.Entity<Pass>().Property(p => p.TokenHash).HasMaxLength(64);
-        modelBuilder.Entity<WaitlistEntry>().Property(w => w.TokenHash).HasMaxLength(64);
-        modelBuilder.Entity<UsageSession>().Property(s => s.UserName).HasMaxLength(200);
-        modelBuilder.Entity<UsageSession>().Property(s => s.Purpose).HasMaxLength(200);
         modelBuilder.Entity<ProblemReport>().Property(r => r.Description).HasMaxLength(500);
         modelBuilder.Entity<ProblemReport>().Property(r => r.ResolutionNotes).HasMaxLength(500);
 

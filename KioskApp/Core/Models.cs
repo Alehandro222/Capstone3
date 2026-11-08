@@ -50,6 +50,16 @@ public sealed record SessionDto(
     };
 }
 
+// The registration form (same fields as the DTC digital login form).
+// Values are the API's names, e.g. AgeGroup = "Age18To30", Sectors = ["Youth"].
+public sealed record KioskRegistration(
+    string FirstName,
+    string LastName,
+    string AgeGroup,
+    string Sex,
+    List<string> Sectors,
+    List<string> Services);
+
 // From POST api/kiosk/heartbeat: this PC, and its running session (if any).
 public sealed record KioskStateDto(ComputerDto Computer, SessionDto? Session);
 

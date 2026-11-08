@@ -165,14 +165,43 @@ public static class ApiExtensions
         return computers.Single(c => c.Id == computerId).Status;
     }
 
-    public static object Visitor(int computerId, string first = "Juan", string last = "Dela Cruz") => new
+    // The registration form, filled in.
+    public static object Registration(string first = "Juan", string last = "Dela Cruz") => new
     {
-        computerId,
         firstName = first,
         lastName = last,
-        age = 20,
+        ageGroup = "Age18To30",
         sex = "Male",
-        purpose = "Schoolwork",
-        sectors = new[] { "Youth", "Academe" }
+        sectors = new[] { "Youth", "Academe" },
+        services = new[] { "IctEquipment", "Connectivity" }
     };
+
+    // The desk's walk-in form: the registration, plus a PC (or null to only log the visit).
+    public static object WalkIn(int? computerId, string first = "Juan", string last = "Dela Cruz") => new
+    {
+        firstName = first,
+        lastName = last,
+        ageGroup = "Age60AndAbove",
+        sex = "Female",
+        sectors = new[] { "SeniorCitizen" },
+        services = new[] { "IctEquipment" },
+        computerId
+    };
+
+    // A phone registers (logs the visit).
+    public static Task<CreatedVisitDto> Register(this HttpClient phone, string first = "Juan", string last = "Dela Cruz") =>
+        phone.PostJson<CreatedVisitDto>("/api/visits", Registration(first, last));
+
+    // A registered phone picks a PC.
+    public static Task<VisitDto> Pick(this HttpClient phone, string token, int computerId) =>
+        phone.PostJson<VisitDto>($"/api/visits/{token}/pass", new { computerId });
+
+    // Register and pick in one go; returns the token and the pass code.
+    public static async Task<(string Token, string Code)> RegisterAndPick(this HttpClient phone, int computerId,
+        string first = "Juan", string last = "Dela Cruz")
+    {
+        var visit = await phone.Register(first, last);
+        var picked = await phone.Pick(visit.Token, computerId);
+        return (visit.Token, picked.Pass!.Code);
+    }
 }

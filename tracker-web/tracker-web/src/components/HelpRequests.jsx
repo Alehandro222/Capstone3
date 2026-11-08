@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseUtc } from '../kiosk/utils.js'
+import { parseUtc } from '../time.js'
 import '../help.css'
 
 const FILTERS = ['Active', 'Resolved', 'All']

@@ -1,25 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import Kiosk from './kiosk/Kiosk.jsx'
 import StaffGate from './auth/StaffGate.jsx'
 import './styles.css'
 
-// Two screens share one app, chosen by the part of the URL after "#":
-//   http://localhost:5173/            -> staff dashboard (sign-in first)
-//   http://localhost:5173/#/kiosk/1   -> login screen for computer 1 (PC-01)
+// http://localhost:5173/  -> staff dashboard (sign-in first).
+// (The visitor phone app will be added next to it in phase 3.)
 function Root() {
-  const [hash, setHash] = useState(window.location.hash)
-
-  useEffect(() => {
-    const onChange = () => setHash(window.location.hash)
-    window.addEventListener('hashchange', onChange)
-    return () => window.removeEventListener('hashchange', onChange)
-  }, [])
-
-  if (hash.startsWith('#/kiosk')) return <Kiosk hash={hash} />
-
-  // The dashboard needs a staff sign-in.
   return <StaffGate>{(me, signOut) => <App me={me} onSignOut={signOut} />}</StaffGate>
 }
 

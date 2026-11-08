@@ -8,16 +8,14 @@ public enum WaitlistStatus
     Expired  // waited too long without getting a PC
 }
 
-// A visitor waiting because no PC is free. While anyone is waiting,
+// A registered visitor waiting because no PC is free. While anyone is waiting,
 // sessions cannot be extended.
 public class WaitlistEntry
 {
     public int Id { get; set; }
 
-    // SHA-256 of the secret token the phone keeps (same idea as passes).
-    public string TokenHash { get; set; } = string.Empty;
-
-    public string? FirstName { get; set; } // optional, so staff can call them
+    public int VisitId { get; set; }
+    public Visit? Visit { get; set; }
 
     public WaitlistStatus Status { get; set; } = WaitlistStatus.Waiting;
     public DateTime CreatedAt { get; set; }

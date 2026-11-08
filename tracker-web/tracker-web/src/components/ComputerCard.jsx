@@ -1,3 +1,4 @@
+import { parseUtc } from '../time.js'
 import PeripheralList from './PeripheralList.jsx'
 
 // The API works out the status (see TrackerApi/Models/Computer.cs).
@@ -26,8 +27,7 @@ const EMPTY_TEXT = {
 
 // "Started 14 min ago" style text from an ISO date string.
 function since(isoDate) {
-  // The API sends UTC times; add "Z" if the serializer left it off.
-  const date = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(isoDate) ? isoDate : `${isoDate}Z`)
+  const date = parseUtc(isoDate)
   const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000))
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes} min ago`
@@ -77,7 +77,7 @@ export default function ComputerCard({
         {computer.status === 'Available' && (
           <>
             <button className="btn btn-primary" onClick={onStart}>
-              Start session
+              Register visitor
             </button>
             <button className="btn btn-quiet" onClick={() => onSetStatus('Maintenance')}>
               Report broken

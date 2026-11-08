@@ -36,10 +36,11 @@ public class ConsistencyTests : IAsyncLifetime
     public async Task Unreadable_requests_name_the_bad_field()
     {
         await _factory.Heartbeat(1);
-        var response = await _factory.Anonymous().Post("/api/passes", new
+        var response = await _factory.Anonymous().Post("/api/visits", new
         {
-            computerId = 1, firstName = "Juan", lastName = "Dela Cruz", age = 20, purpose = "Schoolwork",
-            sectors = new[] { "Wizards" } // not one of the 10 sectors
+            firstName = "Juan", lastName = "Dela Cruz", ageGroup = "Age18To30", sex = "Male",
+            sectors = new[] { "Wizards" }, // not one of the 10 sectors
+            services = new[] { "Connectivity" }
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -50,7 +51,7 @@ public class ConsistencyTests : IAsyncLifetime
     public async Task Staff_can_only_end_a_session_as_staff()
     {
         await _factory.Heartbeat(1);
-        var session = await _staff.PostJson<SessionDto>("/api/passes/walk-in", ApiExtensions.Visitor(1));
+        var session = (await _staff.PostJson<WalkInResultDto>("/api/visits/walk-in", ApiExtensions.WalkIn(1))).Session!;
 
         var faked = await _staff.Post($"/api/sessions/{session.Id}/end", new { reason = "TimeLimit" });
         Assert.Equal(HttpStatusCode.BadRequest, faked.StatusCode);

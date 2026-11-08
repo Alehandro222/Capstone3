@@ -155,21 +155,13 @@ public sealed class KioskController
         Publish();
     }
 
-    // Returns null on success, or a message to show the user.
-    public async Task<string?> LoginAsync(string userName, string purpose)
+    // Staff-only form on this PC: register the visitor and start their session here.
+    // Returns null on success, or a message to show. (The tracker checks every field.)
+    public async Task<string?> RegisterAndStartAsync(KioskRegistration registration)
     {
-        userName = (userName ?? "").Trim();
-        purpose = (purpose ?? "").Trim();
-
-        if (userName.Length < 2) return "Please enter your full name.";
-        if (userName.Length > 100) return "Your name is too long (100 characters at most).";
-        if (purpose.Length == 0) return "Please choose what you will use the computer for.";
-        if (purpose.Length > 200) return "The purpose is too long (200 characters at most).";
-
         try
         {
-            // This is the step that records the person in the tracker.
-            await _api.StartSessionAsync(userName, purpose);
+            await _api.StartSessionAsync(registration);
             _farewellName = null;
             await RefreshAsync();
             return null;

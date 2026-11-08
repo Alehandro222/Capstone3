@@ -24,10 +24,13 @@ public class KioskController : ControllerBase
     private readonly KioskPairingService _pairing;
     private readonly AuditService _audit;
     private readonly AssistService _assist;
+    private readonly VisitService _visits;
 
     public KioskController(TrackerDbContext db, TimeProvider clock, ComputerStatusService status,
-        SessionService sessions, KioskPairingService pairing, AuditService audit, AssistService assist)
+        SessionService sessions, KioskPairingService pairing, AuditService audit, AssistService assist,
+        VisitService visits)
     {
+        _visits = visits;
         _assist = assist;
         _db = db;
         _clock = clock;
@@ -65,14 +68,15 @@ public class KioskController : ControllerBase
         return new KioskStateDto(view, await _sessions.GetActiveOnComputerAsync(ComputerId));
     }
 
-    // POST api/kiosk/sessions   body: { "userName": "Maria", "purpose": "Printing" }
-    // The kiosk's own login form (until check-in with a pass replaces it).
+    // POST api/kiosk/sessions   body: the registration form
+    //   { "firstName", "lastName", "ageGroup", "sex", "sectors": [...], "services": [...] }
+    // The staff-only form on the PC (behind the staff PIN), e.g. for a visitor
+    // whose phone died: registers the visit and starts the session on this PC.
     [HttpPost("sessions")]
-    public async Task<SessionDto> Start(KioskStartSessionRequest request)
+    public async Task<SessionDto> Start(RegistrationRequest request)
     {
-        var session = await _sessions.StartByNameAsync(
-            new StartSessionRequest(ComputerId, request.UserName, request.Purpose));
-        await _audit.RecordAsync("session.start", "Session", session.Id, $"computer {ComputerId}, {session.UserName}");
+        var session = await _visits.StartAtKioskAsync(ComputerId, request);
+        await _audit.RecordAsync("visit.kiosk", "Session", session.Id, $"computer {ComputerId}, visit {session.VisitId}");
         return session;
     }
 

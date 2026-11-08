@@ -9,9 +9,9 @@ public enum SessionEndReason
     System     // anything else
 }
 
-// One row = one person using one computer for a period of time.
+// One row = one visitor using one computer for a period of time.
 // EndedAt == null means the session is still active.
-// The database allows only one active session per computer (see TrackerDbContext).
+// The database allows only one active session per computer, and per visit.
 public class UsageSession
 {
     public int Id { get; set; }
@@ -19,12 +19,13 @@ public class UsageSession
     public int ComputerId { get; set; }
     public Computer? Computer { get; set; }
 
-    // The pass this session was started with (null for the old kiosk login form).
+    // Who is using it: every session belongs to a registered visit.
+    public int VisitId { get; set; }
+    public Visit? Visit { get; set; }
+
+    // The pass it was started with (null for walk-ins started by staff).
     public int? PassId { get; set; }
     public Pass? Pass { get; set; }
-
-    public string UserName { get; set; } = string.Empty; // who is using it
-    public string Purpose { get; set; } = string.Empty;  // what they are using it for
 
     public DateTime StartedAt { get; set; }
     public DateTime ScheduledEndAt { get; set; } // moves later with each extension

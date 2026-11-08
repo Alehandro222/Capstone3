@@ -29,6 +29,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 // The business rules. "Scoped" = one instance per HTTP request.
 builder.Services.AddScoped<ComputerStatusService>();
 builder.Services.AddScoped<SessionService>();
+builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<PassService>();
 builder.Services.AddScoped<WaitlistService>();
 builder.Services.AddScoped<ProblemService>();

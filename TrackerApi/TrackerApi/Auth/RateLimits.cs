@@ -14,6 +14,7 @@ public class RateLimitOptions
 
     // Counted per device (IP address) on the library network.
     public int SignInPerMinute { get; set; } = 10;        // staff sign-in attempts
+    public int RegistrationsPer10Minutes { get; set; } = 6; // new visits (the login form)
     public int PassesPer10Minutes { get; set; } = 6;      // new passes (picking a PC)
     public int WaitlistJoinsPer10Minutes { get; set; } = 5;
     public int PairingPerMinute { get; set; } = 10;       // kiosk pairing-code attempts
@@ -29,6 +30,7 @@ public class RateLimitOptions
 public static class RateLimits
 {
     public const string SignIn = "signin";
+    public const string Registrations = "registrations";
     public const string Passes = "passes";
     public const string WaitlistJoin = "waitlist-join";
     public const string Pairing = "pairing";
@@ -40,6 +42,7 @@ public static class RateLimits
         services.AddRateLimiter(o =>
         {
             o.AddPolicy(SignIn, ctx => PerDevice(ctx, x => x.SignInPerMinute, TimeSpan.FromMinutes(1)));
+            o.AddPolicy(Registrations, ctx => PerDevice(ctx, x => x.RegistrationsPer10Minutes, TimeSpan.FromMinutes(10)));
             o.AddPolicy(Passes, ctx => PerDevice(ctx, x => x.PassesPer10Minutes, TimeSpan.FromMinutes(10)));
             o.AddPolicy(WaitlistJoin, ctx => PerDevice(ctx, x => x.WaitlistJoinsPer10Minutes, TimeSpan.FromMinutes(10)));
             o.AddPolicy(Pairing, ctx => PerDevice(ctx, x => x.PairingPerMinute, TimeSpan.FromMinutes(1)));

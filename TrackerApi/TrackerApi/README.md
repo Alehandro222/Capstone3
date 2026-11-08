@@ -1,13 +1,28 @@
 # Computer System Tracker: API (C# / ASP.NET Core)
 
-Backend for the library's public computers: visitors register on their phone and pick a PC, staff scan their pass at the help desk, and the session runs on the PC with a time limit.
+Backend for the DTC Baguio digital login and its public computers. Visitors log their visit on their phone (the same form as the DTC Google Form) and, if they want a computer, pick one. Staff scan their pass at the help desk, and the session runs on the PC with a time limit.
 
 ## How a visit works
 
-1. **Phone:** the visitor fills in the form and picks an available PC → `POST /api/passes`. The PC becomes **Reserved** and the phone gets a pass: a QR token plus a 6-digit backup code, valid for 10 minutes.
-2. **Help desk:** staff scan the QR (or type the code) → `POST /api/passes/check-in`. The server checks the pass exists, is not expired or used, and the PC is not offline, then starts a **3-hour session**.
-3. **PC:** the kiosk app sees the session and unlocks. During the last 10 minutes the visitor can extend by 1 hour (at most twice), but only if nobody is on the waitlist.
-4. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit.
+1. **Register (log the visit):** the visitor scans the entrance QR and fills in the form: first and last name, age group, sex, sectors and purpose / services availed → `POST /api/visits`. The phone gets a **token** to keep. Many visitors stop here (Wi-Fi, co-working space, eGov help); their visit is still logged for the reports.
+2. **Pick a PC (optional):** `POST /api/visits/{token}/pass`. The PC becomes **Reserved**, and the phone shows a pass: a QR code (the visit's token) plus a 6-digit backup code, valid for 10 minutes. If no PC is free, the visitor can join the waitlist.
+3. **Help desk:** staff scan the QR (or type the code) → `POST /api/passes/check-in`. The server checks the pass exists, is not expired or used, and the PC is not offline, then starts a **3-hour session**.
+4. **PC:** the kiosk app sees the session and unlocks. During the last 10 minutes the visitor can extend by 1 hour (at most twice), but only if nobody is on the waitlist.
+5. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit.
+
+**Visitors without a phone** are registered by staff: at the desk (`POST /api/visits/walk-in`, with or without a PC), or on the PC itself through the kiosk app's staff-only form (behind the staff PIN). Every session belongs to a registered visit, so every session has the full registration data for the reports.
+
+### The registration form
+
+| Field | Answers |
+|---|---|
+| First name, last name | Text, required |
+| Age | `Age17AndUnder`, `Age18To30`, `Age31To59`, `Age60AndAbove` (the DTC form's groups, with the overlap at 17 fixed) |
+| Sex | `Male`, `Female` |
+| Sector (one or more) | `Nga`, `Lgu`, `Academe`, `Youth`, `SeniorCitizen`, `Msme`, `IndigenousPeople`, `Pwd`, `InformalSector`, `Others` |
+| Purpose / services availed (one or more) | `Connectivity`, `IctEquipment` (use of ICT equipment), `CoWorkingSpace`, `EgovServices`, `Others` |
+
+The forms show DICT-CAR's privacy statement. Submitting the form means agreeing to it, as with the Google Form.
 
 ## PC status
 
@@ -43,7 +58,7 @@ Then sign in to the dashboard and create everyone else from there (or with `POST
 
 The SQLite file `tracker.db` is created on first run with 12 PCs (PC-01 to PC-12), PC-03 under maintenance, and a few peripherals. To reset the data, stop the API and delete `tracker.db`, `tracker.db-shm` and `tracker.db-wal`.
 
-> **Upgrading from the old version:** a `tracker.db` made before migrations were added can't be upgraded. The API stops with a message saying so. Delete the file and start again.
+> **Upgrading from an older development version:** the migrations were merged into one before the first release. A `tracker.db` made by an older version can't be upgraded, and the API stops with a message saying so. Delete the file and start again.
 
 ### Heartbeats while developing
 
@@ -53,7 +68,7 @@ In the library, a PC shows as Offline unless its kiosk app is running. That make
 
 | Caller | How it proves who it is | What it can use |
 |---|---|---|
-| Visitor's phone | Nothing to sign in to. Its pass/waitlist **token** is the proof | Public availability, its own pass, the waitlist |
+| Visitor's phone | Nothing to sign in to. Its visit **token** is the proof | Public availability, and its own visit: PC pass, session, waitlist place |
 | Kiosk app on a PC | **Its own PC's key**, received when staff paired it | Only `/api/kiosk/*`, and only for **its own** PC: heartbeat, its session, help requests |
 | Staff | **Sign-in** with username and password → an HttpOnly cookie | Everything else |
 | Admin | Same, with the Admin role | Also staff accounts, adding PCs and the audit log |
@@ -64,7 +79,7 @@ Every endpoint needs a staff sign-in **unless it is marked otherwise**, so a new
 - **5 wrong passwords** lock the account for 15 minutes (an admin can unlock it sooner).
 - **Deactivating** an account or changing its role signs that person out straight away.
 - There must **always be one active admin**: the API refuses to deactivate or demote the last one.
-- Open routes are **rate-limited** per device (IP address): 10 sign-in attempts a minute, 6 new passes and 5 waitlist joins per 10 minutes, and 10 pairing attempts a minute. Over the limit the API answers **429** with a message. This stops one phone from reserving every PC with a script.
+- Open routes are **rate-limited** per device (IP address): 10 sign-in attempts a minute, 6 registrations, 6 PC picks and 5 waitlist joins per 10 minutes, and 10 pairing attempts a minute. Over the limit the API answers **429** with a message. This stops one phone from reserving every PC with a script.
 
 ### Pairing a PC
 
@@ -83,8 +98,9 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `auth.*`: sign-ins, failed sign-ins, sign-outs, password changes
 - `staff.*`: account changes
 - `pass.lookup`: staff **viewed** a visitor's details (Data Privacy Act)
-- `pass.check_in`, `pass.walk_in`
-- `session.start`, `session.end`, `session.extend`
+- `pass.check_in`
+- `visit.walk_in` (at the desk), `visit.kiosk` (on the PC, by staff)
+- `session.end`, `session.extend`
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
 - `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
 
@@ -92,6 +108,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 
 | Setting | Meaning | Default |
 |---|---|---|
+| `VisitLifetimeHours` | How long the phone can use its registration (pick a PC, join the waitlist) | `12` |
 | `PassLifetimeMinutes` | Time to get the pass scanned | `10` |
 | `SessionMinutes` | Session length | `180` |
 | `ExtensionMinutes` | Time added per extension | `60` |
@@ -108,7 +125,8 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 |---|---|---|
 | `Enabled` | `false` turns all limits off | `true` |
 | `SignInPerMinute` | Staff sign-in attempts per device | `10` |
-| `PassesPer10Minutes` | New passes per device | `6` |
+| `RegistrationsPer10Minutes` | New registrations per device | `6` |
+| `PassesPer10Minutes` | PC picks per device | `6` |
 | `WaitlistJoinsPer10Minutes` | Waitlist joins per device | `5` |
 | `PairingPerMinute` | Kiosk pairing attempts per device | `10` |
 
@@ -125,14 +143,14 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/public/computers` | Live availability (no names or personal data) |
-| POST | `/api/passes` | Register and reserve a PC → returns `token` (keep it!) and the pass |
-| GET | `/api/passes/{token}` | Pass status; includes the session once checked in (poll this) |
-| POST | `/api/passes/{token}/cancel` | Choose a different PC |
-| POST | `/api/passes/{token}/extend` | Extend the session |
-| POST | `/api/passes/{token}/end` | End the session |
-| POST | `/api/waitlist` | Join the waitlist (only when no PC is free) → returns `token` |
-| GET | `/api/waitlist/{token}` | Place in line, and how many PCs are free |
-| DELETE | `/api/waitlist/{token}` | Leave the line |
+| POST | `/api/visits` | Register (the form above) → returns `token` (keep it!) and the visit |
+| GET | `/api/visits/{token}` | The visit: its PC pass, session and waitlist place (poll this) |
+| POST | `/api/visits/{token}/pass` | `{ computerId }`: reserve a PC (picking again gives the first one back) |
+| POST | `/api/visits/{token}/pass/cancel` | Give the PC back |
+| POST | `/api/visits/{token}/session/end` | End the session |
+| POST | `/api/visits/{token}/session/extend` | Extend the session |
+| POST | `/api/visits/{token}/waitlist` | Join the waitlist (only when no PC is free) |
+| DELETE | `/api/visits/{token}/waitlist` | Leave the line |
 
 ### Staff
 
@@ -145,14 +163,14 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | POST | `/api/computers/{id}/pairing-code` | One-time code to pair that PC's kiosk app (admin) |
 | POST | `/api/computers/{id}/unpair` | Cancel that PC's key (admin) |
 | PUT | `/api/computers/{id}/status` | `Maintenance` opens a problem report, `Available` resolves them (for the current dashboard) |
-| POST | `/api/passes/lookup` | `{ token }` or `{ code }` → who the pass belongs to |
+| GET | `/api/visits` | The visitor log, newest first (`?from=&to=&limit=`) |
+| POST | `/api/visits/walk-in` | Visitor without a phone: the form plus an optional `computerId` (starts the session right away; without it the visit is only logged) |
+| POST | `/api/passes/lookup` | `{ token }` (the QR) or `{ code }` → the pass and the visitor's details |
 | POST | `/api/passes/check-in` | `{ token }` or `{ code }` → validates and starts the session |
-| POST | `/api/passes/walk-in` | Visitor without a phone: register and start right away |
 | GET | `/api/passes` | Recent passes (`?status=Pending`) |
 | GET | `/api/sessions/active` | Running sessions |
 | GET | `/api/sessions` | History (`?computerId=`, `?from=`, `?to=`, `?limit=`) |
 | GET | `/api/sessions/{id}` | One session |
-| POST | `/api/sessions/start` | Start a session from a typed name and purpose `{ computerId, userName, purpose }` (no registration data: prefer walk-in) |
 | POST | `/api/sessions/{id}/end` | End a session. Recorded as ended by staff; the only reason allowed is `Staff` |
 | POST | `/api/sessions/{id}/extend` | Extend a session |
 | GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report |
@@ -170,7 +188,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 |---|---|---|
 | POST | `/api/kiosk/pair` | `{ code }` → this PC's id and key (no key needed; rate-limited) |
 | POST | `/api/kiosk/heartbeat` | "This PC is on" (every few seconds) → this PC and its session |
-| POST | `/api/kiosk/sessions` | The kiosk's own login form `{ userName, purpose }` |
+| POST | `/api/kiosk/sessions` | Staff-only form on the PC: the registration form → registers the visit and starts the session here |
 | POST | `/api/kiosk/session/end` | Log out. Optional `{ "reason": "Idle" }`; without it the reason is `Visitor` |
 | POST | `/api/kiosk/session/extend` | Extend this PC's session |
 | POST | `/api/kiosk/help` | "Need help?" `{ message }` |
@@ -191,11 +209,11 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 
 ## Database rules
 
-- **Foreign keys:** every pass, session and problem report must point to a real PC. A PC with history can't be deleted.
-- **One active session per PC** and **one pending pass per PC**, enforced by unique indexes in the database itself, not just by the code.
+- **Foreign keys:** every pass, session and problem report must point to a real PC, and every pass and session to a real visit. A PC or visit with history can't be deleted.
+- **One PC, one visitor:** one active session and one pending pass per PC, and one active session, one pending pass and one waitlist place per visit. These are enforced by unique indexes in the database itself, not just by the code.
 - **Transactions:** "check the PC is free, then reserve it" and "check the pass, then start the session" each run as one all-or-nothing step, so two people can't grab the same PC at the same moment.
 - **Server-clock timestamps:** every time comes from the server, stored in UTC (JSON times end in `Z`).
-- **Secrets are hashed:** pass and waitlist tokens are stored as SHA-256 hashes, so a copy of the database can't be used to fake passes.
+- **Secrets are hashed:** visit tokens and kiosk keys are stored as SHA-256 hashes, so a copy of the database can't be used to fake passes.
 - **Enums are stored as text** (`"Pending"`, not `0`), so the database is readable in any SQLite viewer.
 
 ## Changing the database (migrations)
@@ -228,7 +246,7 @@ TrackerApi/
   Models/                  entities (tables) + DTOs (request/response shapes)
   Data/                    TrackerDbContext (tables, rules, seed data), DatabaseSetup
   Migrations/              generated database changes
-  Services/                the rules: status, passes, sessions, waitlist, problems, staff, audit, cleanup
+  Services/                the rules: registration, visits, passes, sessions, waitlist, status, problems, staff, audit, cleanup
   Auth/                    who may call what: cookies, per-PC kiosk keys, rate limits, create-admin command
   Controllers/             the HTTP endpoints (thin: they call the services)
 TrackerApi.Tests/          automated tests

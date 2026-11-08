@@ -49,8 +49,9 @@ public sealed class ApiClient : IDisposable
     public Task<KioskStateDto> HeartbeatAsync(CancellationToken ct = default) =>
         PostAsync<KioskStateDto>("api/kiosk/heartbeat", new { }, ct);
 
-    public Task<SessionDto> StartSessionAsync(string userName, string purpose, CancellationToken ct = default) =>
-        PostAsync<SessionDto>("api/kiosk/sessions", new { userName, purpose }, ct);
+    // Staff-only registration on this PC: logs the visit and starts the session here.
+    public Task<SessionDto> StartSessionAsync(KioskRegistration registration, CancellationToken ct = default) =>
+        PostAsync<SessionDto>("api/kiosk/sessions", registration, ct);
 
     // reason: "Visitor" (Log out button) or "Idle" (automatic log out).
     public Task<SessionDto> EndSessionAsync(string reason, CancellationToken ct = default) =>

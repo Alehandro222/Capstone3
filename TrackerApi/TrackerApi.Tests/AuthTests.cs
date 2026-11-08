@@ -28,8 +28,9 @@ public class AuthTests : IDisposable
         // The phone's own routes stay open.
         Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync("/api/public/computers")).StatusCode);
         await _factory.Heartbeat(1);
-        var pass = await phone.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
-        Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync($"/api/passes/{pass.Token}")).StatusCode);
+        var (token, _) = await phone.RegisterAndPick(1);
+        Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync($"/api/visits/{token}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/api/visits")).StatusCode); // the visitor log
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public class AuthTests : IDisposable
         var pc1 = await _factory.KioskAsync(1);
         var pc2 = await _factory.KioskAsync(2);
         await _factory.Heartbeat(2);
-        await pc2.PostJson<SessionDto>("/api/kiosk/sessions", new { userName = "Maria", purpose = "Printing" });
+        await pc2.PostJson<SessionDto>("/api/kiosk/sessions", ApiExtensions.Registration("Maria", "Santos"));
 
         // PC-01 sees only itself, so Maria's name never reaches it...
         var state = await pc1.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
@@ -279,8 +280,8 @@ public class AuthTests : IDisposable
         var kiosk = await _factory.KioskAsync(1);
         await _factory.Heartbeat(1);
 
-        var pass = await _factory.Anonymous().PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
-        var session = await admin.PostJson<SessionDto>("/api/passes/check-in", new { code = pass.Pass.Code });
+        var (_, code) = await _factory.Anonymous().RegisterAndPick(1);
+        var session = await admin.PostJson<SessionDto>("/api/passes/check-in", new { code });
         await kiosk.PostJson<SessionDto>("/api/kiosk/session/end", new { reason = "Idle" });
         await _factory.Anonymous().Post("/api/auth/login", new { username = "admin", password = "wrong" });
 

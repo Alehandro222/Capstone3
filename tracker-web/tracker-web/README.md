@@ -4,7 +4,7 @@ Frontend for the C# `TrackerApi`.
 
 ## Run it
 
-1. Start the API first (in the `TrackerApi` folder): `dotnet run` (it listens on http://localhost:5080).
+1. Start the API first (in the inner `TrackerApi/TrackerApi` folder, where `TrackerApi.csproj` is): `dotnet run` (it listens on http://localhost:5080).
 2. In this folder:
 
 ```bash
@@ -22,7 +22,9 @@ The dev server forwards `/api` to the API on http://localhost:5080 (see `vite.co
 
 - Shows every computer as a card: status, current user, purpose, how long they've been on.
 - Lists the peripherals connected to each computer. While a session is running, a device can be toggled "In use" (headset, tablet, mic...).
-- Start / end sessions, report a computer broken, mark it fixed.
+- **Register visitor** on a free computer: the DTC registration form for a visitor without a phone. Their session starts straight away.
+- **Log a visit (no computer):** the same form, for visitors who only need Wi-Fi, a desk or eGov help.
+- End sessions, report a computer broken, mark it fixed.
 - "Need help?" sends an assist request to the API.
 - Refreshes automatically every 5 seconds.
 
@@ -40,5 +42,8 @@ src/
     ComputerCard.jsx         one computer
     PeripheralList.jsx       devices on a computer
     Modal.jsx                reusable form dialog
+    WalkInDialog.jsx         the registration form for walk-ins
+  registration.js            the form's choices and privacy statement (shared with the phone app)
+  time.js                    reads the API's UTC times
   styles.css
 ```

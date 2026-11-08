@@ -53,37 +53,101 @@
                                TextAlignment="Center" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 </StackPanel>
 
-                <!-- Login -->
+                <!-- Available: how visitors get this PC (they register on their phone) -->
                 <StackPanel x:Name="LoginPanel" Visibility="Collapsed">
                     <TextBlock Text="Welcome" FontSize="34" FontWeight="Bold"/>
-                    <TextBlock x:Name="LoginIntro" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,20"/>
+                    <TextBlock x:Name="LoginIntro" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,20" TextWrapping="Wrap"/>
+                    <TextBlock FontSize="18" TextWrapping="Wrap" LineHeight="28">
+                        1. Scan the QR code at the entrance and fill in the registration form.<LineBreak/>
+                        2. Pick this computer on your phone.<LineBreak/>
+                        3. Show your QR pass at the help desk. This computer unlocks when staff scan it.
+                    </TextBlock>
+                    <TextBlock Text="No phone? Ask the staff at the help desk to register you."
+                               FontSize="16" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,16,0,0"/>
 
-                    <TextBlock Text="Your full name" FontWeight="Medium" Margin="0,0,0,6"/>
-                    <TextBox x:Name="NameBox" MaxLength="100" KeyDown="Login_KeyDown"/>
-
-                    <TextBlock Text="What will you use the computer for?" FontWeight="Medium" Margin="0,20,0,8"/>
-                    <WrapPanel x:Name="PurposePanel">
-                        <RadioButton GroupName="Purpose" Content="Job application" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                        <RadioButton GroupName="Purpose" Content="School work or research" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                        <RadioButton GroupName="Purpose" Content="Government forms &amp; services" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                        <RadioButton GroupName="Purpose" Content="Printing or documents" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                        <RadioButton GroupName="Purpose" Content="Online meeting or class" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                        <RadioButton GroupName="Purpose" Content="Other" Style="{StaticResource ChipRadio}" Checked="Purpose_Checked"/>
-                    </WrapPanel>
-                    <TextBox x:Name="OtherBox" MaxLength="200" Visibility="Collapsed" Margin="0,0,0,8" KeyDown="Login_KeyDown"/>
-
-                    <TextBlock x:Name="LoginError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="LoginError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                     <TextBlock x:Name="LoginNotice" Visibility="Collapsed" Foreground="{StaticResource OkBrush}"
                                TextWrapping="Wrap" Margin="0,4,0,0"/>
-
-                    <Button x:Name="LoginButton" Content="Log in and start" Style="{StaticResource PrimaryButton}"
-                            Margin="0,12,0,0" Click="LoginButton_Click"/>
                     <Button x:Name="LoginHelpButton" Content="Need help?" Style="{StaticResource BaseButton}"
-                            Margin="0,10,0,0" Click="LoginHelp_Click"/>
-                    <TextBlock Text="Your name and purpose are recorded to help the office manage computer use."
-                               FontSize="13" Foreground="{StaticResource MutedBrush}"
-                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0"/>
+                            Margin="0,16,0,0" Click="LoginHelp_Click"/>
                 </StackPanel>
+
+                <!-- Staff only (from the staff menu): register a visitor right here, e.g. one whose phone died -->
+                <ScrollViewer x:Name="RegisterPanel" Visibility="Collapsed" MaxHeight="560" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Register a visitor" FontSize="28" FontWeight="Bold"/>
+                        <TextBlock Text="Staff only. The session starts on this computer as soon as you save."
+                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="First name" FontWeight="Medium" Margin="0,0,0,4"/>
+                                <TextBox x:Name="FirstNameBox" MaxLength="100"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Last name" FontWeight="Medium" Margin="0,0,0,4"/>
+                                <TextBox x:Name="LastNameBox" MaxLength="100"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Age" FontWeight="Medium" Margin="0,14,0,6"/>
+                        <WrapPanel x:Name="AgePanel">
+                            <RadioButton GroupName="Age" Tag="Age17AndUnder" Content="17 &amp; under" Style="{StaticResource SmallChipRadio}"/>
+                            <RadioButton GroupName="Age" Tag="Age18To30" Content="18 – 30" Style="{StaticResource SmallChipRadio}"/>
+                            <RadioButton GroupName="Age" Tag="Age31To59" Content="31 – 59" Style="{StaticResource SmallChipRadio}"/>
+                            <RadioButton GroupName="Age" Tag="Age60AndAbove" Content="60 &amp; above" Style="{StaticResource SmallChipRadio}"/>
+                        </WrapPanel>
+
+                        <TextBlock Text="Sex" FontWeight="Medium" Margin="0,6,0,6"/>
+                        <WrapPanel x:Name="SexPanel">
+                            <RadioButton GroupName="Sex" Tag="Male" Content="Male" Style="{StaticResource SmallChipRadio}"/>
+                            <RadioButton GroupName="Sex" Tag="Female" Content="Female" Style="{StaticResource SmallChipRadio}"/>
+                        </WrapPanel>
+
+                        <TextBlock Text="Sector (select all that apply)" FontWeight="Medium" Margin="0,6,0,6"/>
+                        <WrapPanel x:Name="SectorPanel">
+                            <CheckBox Tag="Nga" Content="NGA" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Lgu" Content="LGU" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Academe" Content="Academe" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Youth" Content="Youth" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="SeniorCitizen" Content="Senior Citizen" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Msme" Content="MSMEs" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="IndigenousPeople" Content="Indigenous People" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Pwd" Content="PWD" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="InformalSector" Content="Informal Sector" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Others" Content="Others" Style="{StaticResource ChipCheck}"/>
+                        </WrapPanel>
+
+                        <TextBlock Text="Purpose / services availed (select all that apply)" FontWeight="Medium" Margin="0,6,0,6"/>
+                        <WrapPanel x:Name="ServicePanel">
+                            <CheckBox Tag="Connectivity" Content="Connectivity" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="IctEquipment" Content="Use of ICT Equipment" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="CoWorkingSpace" Content="Co-Working Space" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="EgovServices" Content="eGov Services" Style="{StaticResource ChipCheck}"/>
+                            <CheckBox Tag="Others" Content="Others" Style="{StaticResource ChipCheck}"/>
+                        </WrapPanel>
+
+                        <TextBlock FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Text="Privacy: the visitor's details are used by DICT-CAR only for registration, in compliance with the Data Privacy Act of 2012. Read the full statement to them if they ask."/>
+
+                        <TextBlock x:Name="RegisterError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Cancel" Style="{StaticResource BaseButton}" Click="StaffCancel_Click"/>
+                            <Button Grid.Column="2" x:Name="RegisterButton" Content="Register and start"
+                                    Style="{StaticResource PrimaryButton}" Click="RegisterButton_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <!-- Setup: staff choose which computer this is -->
                 <StackPanel x:Name="SetupPanel" Visibility="Collapsed">
@@ -116,6 +180,8 @@
                 <!-- Staff menu -->
                 <StackPanel x:Name="StaffMenuPanel" Visibility="Collapsed">
                     <TextBlock Text="Staff menu" FontSize="30" FontWeight="Bold" Margin="0,0,0,16"/>
+                    <Button Content="Register a visitor on this computer" Style="{StaticResource PrimaryButton}" Click="RegisterVisitor_Click" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="StaffMenuError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <Button Content="Unpair this computer" Style="{StaticResource BaseButton}" Click="ChangeComputer_Click" Margin="0,0,0,12"/>
                     <Button Content="Exit the kiosk" Style="{StaticResource DangerButton}" Click="ExitKiosk_Click" Margin="0,0,0,12"/>
                     <Button Content="Back" Style="{StaticResource BaseButton}" Click="StaffCancel_Click"/>

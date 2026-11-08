@@ -5,7 +5,7 @@ using TrackerApi.Models;
 
 namespace TrackerApi.Services;
 
-// The line of visitors waiting for a PC when none is free.
+// The line of registered visitors waiting for a PC when none is free.
 public class WaitlistService
 {
     private readonly TrackerDbContext _db;
@@ -22,72 +22,84 @@ public class WaitlistService
         _status = status;
     }
 
-    public async Task<WaitlistJoinedDto> JoinAsync(JoinWaitlistRequest request)
+    public async Task JoinAsync(Visit visit)
     {
-        var firstName = request.FirstName?.Trim();
-        if (firstName?.Length > 100) throw TrackerException.BadRequest("Name must be 100 characters or fewer.");
+        var now = _clock.UtcNow();
+        if (await CurrentEntryAsync(visit, now) is not null) return; // already waiting
 
+        // An entry that timed out but was not cleaned up yet must not block joining again.
+        foreach (var stale in await _db.WaitlistEntries
+                     .Where(w => w.VisitId == visit.Id && w.Status == WaitlistStatus.Waiting && w.ExpiresAt <= now)
+                     .ToListAsync())
+        {
+            stale.Status = WaitlistStatus.Expired;
+            stale.EndedAt = stale.ExpiresAt;
+        }
+
+        if (await _db.Sessions.AnyAsync(s => s.VisitId == visit.Id && s.EndedAt == null))
+            throw TrackerException.Conflict("You are already using a computer.");
+        if (await _db.Passes.AnyAsync(p => p.VisitId == visit.Id && p.Status == PassStatus.Pending && p.ExpiresAt > now))
+            throw TrackerException.Conflict("You already have a PC reserved.");
         if (await CountAvailableAsync() > 0)
             throw TrackerException.Conflict("A computer is free right now. Please pick one instead.");
 
-        var now = _clock.UtcNow();
-        var token = Secrets.NewToken();
-        var entry = new WaitlistEntry
+        _db.WaitlistEntries.Add(new WaitlistEntry
         {
-            TokenHash = Secrets.Hash(token),
-            FirstName = string.IsNullOrEmpty(firstName) ? null : firstName,
+            VisitId = visit.Id,
             CreatedAt = now,
             ExpiresAt = now.AddMinutes(_options.WaitlistLifetimeMinutes)
-        };
-        _db.WaitlistEntries.Add(entry);
-        await _db.SaveChangesAsync();
-
-        return new WaitlistJoinedDto(token, await ToStatusDtoAsync(entry, now));
+        });
+        await _db.SaveOrConflictAsync("You are already on the waitlist.");
     }
 
-    public async Task<WaitlistStatusDto> GetAsync(string token)
+    public async Task LeaveAsync(Visit visit)
     {
-        var entry = await FindAsync(token);
-        return await ToStatusDtoAsync(entry, _clock.UtcNow());
-    }
-
-    public async Task<WaitlistStatusDto> LeaveAsync(string token)
-    {
-        var entry = await FindAsync(token);
         var now = _clock.UtcNow();
-        if (IsWaiting(entry, now))
-        {
-            entry.Status = WaitlistStatus.Left;
-            entry.EndedAt = now;
-            await _db.SaveChangesAsync();
-        }
-        return await ToStatusDtoAsync(entry, now);
+        var entry = await CurrentEntryAsync(visit, now);
+        if (entry is null) return;
+
+        entry.Status = WaitlistStatus.Left;
+        entry.EndedAt = now;
+        await _db.SaveChangesAsync();
+    }
+
+    // Called when the visitor picks a PC. Does not save: the caller saves it
+    // together with the new pass.
+    public async Task MarkServedAsync(Visit visit, DateTime now)
+    {
+        var entry = await CurrentEntryAsync(visit, now);
+        if (entry is null) return;
+        entry.Status = WaitlistStatus.Served;
+        entry.EndedAt = now;
+    }
+
+    // The visitor's place in line, or null when they are not waiting.
+    public async Task<WaitlistStatusDto?> StatusForAsync(Visit visit)
+    {
+        var now = _clock.UtcNow();
+        var entry = await CurrentEntryAsync(visit, now);
+        if (entry is null) return null;
+
+        var ahead = await _db.WaitlistEntries.CountAsync(w =>
+            w.Status == WaitlistStatus.Waiting && w.ExpiresAt > now &&
+            (w.CreatedAt < entry.CreatedAt || (w.CreatedAt == entry.CreatedAt && w.Id < entry.Id)));
+
+        return new WaitlistStatusDto(entry.Status, ahead + 1, await CountAvailableAsync(), entry.ExpiresAt);
     }
 
     // Staff view: everyone still waiting, first in line first.
     public async Task<List<WaitlistEntryDto>> GetWaitingAsync()
     {
         var now = _clock.UtcNow();
-        var waiting = await _db.WaitlistEntries
+        var waiting = await _db.WaitlistEntries.Include(w => w.Visit)
             .Where(w => w.Status == WaitlistStatus.Waiting && w.ExpiresAt > now)
             .OrderBy(w => w.CreatedAt).ThenBy(w => w.Id)
             .ToListAsync();
 
         return waiting
-            .Select((w, i) => new WaitlistEntryDto(w.Id, w.FirstName, w.Status, i + 1, w.CreatedAt, w.ExpiresAt))
+            .Select((w, i) => new WaitlistEntryDto(w.Id, w.VisitId, w.Visit!.FirstName, w.Status, i + 1,
+                w.CreatedAt, w.ExpiresAt))
             .ToList();
-    }
-
-    // Called when someone from the waitlist creates a pass. Does not save:
-    // the caller saves it together with the new pass.
-    public async Task MarkServedAsync(string token, DateTime now)
-    {
-        var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.TokenHash == Secrets.Hash(token));
-        if (entry is not null && IsWaiting(entry, now))
-        {
-            entry.Status = WaitlistStatus.Served;
-            entry.EndedAt = now;
-        }
     }
 
     public async Task<int> ExpireOldAsync()
@@ -105,31 +117,10 @@ public class WaitlistService
         return old.Count;
     }
 
-    private async Task<WaitlistEntry> FindAsync(string token) =>
-        await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.TokenHash == Secrets.Hash(token))
-        ?? throw TrackerException.NotFound("Waitlist entry not found.");
-
-    private static bool IsWaiting(WaitlistEntry entry, DateTime now) =>
-        entry.Status == WaitlistStatus.Waiting && entry.ExpiresAt > now;
+    private Task<WaitlistEntry?> CurrentEntryAsync(Visit visit, DateTime now) =>
+        _db.WaitlistEntries.FirstOrDefaultAsync(w =>
+            w.VisitId == visit.Id && w.Status == WaitlistStatus.Waiting && w.ExpiresAt > now);
 
     private async Task<int> CountAvailableAsync() =>
         (await _status.GetAllAsync()).Values.Count(s => s == ComputerStatus.Available);
-
-    private async Task<WaitlistStatusDto> ToStatusDtoAsync(WaitlistEntry entry, DateTime now)
-    {
-        var waiting = IsWaiting(entry, now);
-        // The cleanup job may not have run yet, so an old entry can still say "Waiting".
-        var status = entry.Status == WaitlistStatus.Waiting && !waiting ? WaitlistStatus.Expired : entry.Status;
-
-        int? position = null;
-        if (waiting)
-        {
-            var ahead = await _db.WaitlistEntries.CountAsync(w =>
-                w.Status == WaitlistStatus.Waiting && w.ExpiresAt > now &&
-                (w.CreatedAt < entry.CreatedAt || (w.CreatedAt == entry.CreatedAt && w.Id < entry.Id)));
-            position = ahead + 1;
-        }
-
-        return new WaitlistStatusDto(status, position, await CountAvailableAsync(), entry.ExpiresAt);
-    }
 }

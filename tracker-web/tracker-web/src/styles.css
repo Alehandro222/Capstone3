@@ -207,3 +207,17 @@ body {
   font-size: 0.9rem;
   max-width: calc(100vw - 32px);
 }
+
+/* Walk-in registration form (the DTC login form) */
+.modal-wide { max-width: 640px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
+.choices { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; }
+.choices legend { font-size: 0.9rem; padding: 0 4px; }
+.choices-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 12px; }
+.choice { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+.privacy { font-size: 0.8rem; color: var(--muted); }
+.privacy summary { cursor: pointer; }
+.form-error { margin: 0; color: var(--broken); font-size: 0.9rem; }
+.small { font-size: 0.85rem; }
+.log-visit { margin-top: 10px; }
