@@ -10,6 +10,9 @@ public static class AdminCommand
 {
     public static async Task RunAsync(StaffService staff, string[] args)
     {
+        // Settings such as "--environment Production" may follow; they are not part of the name.
+        args = args.TakeWhile(a => !a.StartsWith("--")).ToArray();
+
         if (args.Length < 2)
         {
             Console.WriteLine("Usage: dotnet run -- create-admin <username> \"<full name>\"");

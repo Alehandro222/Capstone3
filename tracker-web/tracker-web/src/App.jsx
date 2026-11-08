@@ -93,6 +93,9 @@ export default function App({ me, onSignOut }) {
           <button className="btn log-visit" onClick={() => setDialog({ type: 'visit' })}>
             Log a visit (no computer)
           </button>
+          <a className="btn log-visit" href="#/poster" target="_blank" rel="noreferrer">
+            Entrance QR poster
+          </a>
         </div>
         <div className="summary">
           <Stat label="Available" value={count('Available')} tone="available" />

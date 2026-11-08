@@ -1,16 +1,20 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// The dev server runs on port 5173 and forwards /api to the C# API. The browser then sees one address only, so the
-// staff sign-in cookie works without any cross-site settings.
-const API = process.env.API_URL ?? 'http://localhost:5080'
+// The dev server runs on port 5173 and forwards /api to the C# API, so the
+// browser only ever talks to one address and the staff sign-in cookie just works.
+// API address: API_URL in the environment or in a .env file, else localhost:5080.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const API = env.API_URL || 'http://localhost:5080'
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': API,
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': API,
+      },
     },
-  },
+  }
 })

@@ -30,6 +30,19 @@ const send = (method, path, body) =>
   request(path, { method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
+  // ---- Visitor phone app (no sign-in; the visit token is the proof) ----
+  publicComputers: () => request('/api/public/computers'),
+  register: (registration) => send('POST', '/api/visits', registration),
+  getVisit: (token) => request(`/api/visits/${encodeURIComponent(token)}`),
+  pickComputer: (token, computerId) =>
+    send('POST', `/api/visits/${encodeURIComponent(token)}/pass`, { computerId }),
+  cancelPass: (token) => send('POST', `/api/visits/${encodeURIComponent(token)}/pass/cancel`),
+  endMySession: (token) => send('POST', `/api/visits/${encodeURIComponent(token)}/session/end`),
+  extendMySession: (token) => send('POST', `/api/visits/${encodeURIComponent(token)}/session/extend`),
+  joinWaitlist: (token) => send('POST', `/api/visits/${encodeURIComponent(token)}/waitlist`),
+  leaveWaitlist: (token) => send('DELETE', `/api/visits/${encodeURIComponent(token)}/waitlist`),
+
+  // ---- Staff dashboard ----
   // Staff sign-in. The API answers with an HttpOnly cookie the browser keeps.
   me: () => request('/api/auth/me'),
   login: (username, password) => send('POST', '/api/auth/login', { username, password }),
