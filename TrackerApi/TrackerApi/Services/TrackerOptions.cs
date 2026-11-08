@@ -31,7 +31,10 @@ public class TrackerOptions
     public bool RequireHeartbeat { get; set; } = true;
 
     // Someone on the waitlist is dropped after this long.
-    public int WaitlistLifetimeMinutes { get; set; } = 120;
+    public int WaitlistLifetimeMinutes { get; set; } = 240;
+
+    // When a PC frees up it is held this long for the first person waiting.
+    public int WaitlistOfferMinutes { get; set; } = 5;
 
     // How often the cleanup job expires passes and ends overdue sessions. 0 = off.
     public int CleanupIntervalSeconds { get; set; } = 15;

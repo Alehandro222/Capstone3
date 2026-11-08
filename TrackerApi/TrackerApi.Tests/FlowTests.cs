@@ -349,6 +349,76 @@ public class FlowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_freed_pc_is_held_for_whoever_waited_first()
+    {
+        var session = await WalkInSession(1);
+        var ana = await _phone.Register("Ana", "Reyes");
+        await _phone.PostJson<VisitDto>($"/api/visits/{ana.Token}/waitlist");
+        var ben = await _factory.Anonymous().Register("Ben", "Cruz");
+
+        await _staff.PostJson<SessionDto>($"/api/sessions/{session.Id}/end");
+        await _factory.Heartbeat(1);
+
+        // Ben came later and is not waiting: PC-01 is held for Ana.
+        var benTries = await _phone.Post($"/api/visits/{ben.Token}/pass", new { computerId = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, benTries.StatusCode);
+        Assert.Contains("held for someone on the waitlist", await benTries.Message());
+
+        // Ana's phone says a computer is ready for her, for 5 minutes.
+        var anaView = await _phone.GetJson<VisitDto>($"/api/visits/{ana.Token}");
+        Assert.Equal(_factory.Clock.GetUtcNow().UtcDateTime.AddMinutes(5), anaView.Waitlist!.ComputerReadyUntil);
+
+        var picked = await _phone.Pick(ana.Token, 1);
+        Assert.Equal(PassStatus.Pending, picked.Pass!.Status);
+    }
+
+    [Fact]
+    public async Task Missing_your_turn_passes_the_pc_to_the_next_person()
+    {
+        var session = await WalkInSession(1);
+        var ana = await _phone.Register("Ana", "Reyes");
+        var ben = await _phone.Register("Ben", "Cruz");
+        await _phone.PostJson<VisitDto>($"/api/visits/{ana.Token}/waitlist");
+        await _phone.PostJson<VisitDto>($"/api/visits/{ben.Token}/waitlist");
+
+        await _staff.PostJson<SessionDto>($"/api/sessions/{session.Id}/end");
+        await _factory.Heartbeat(1);
+
+        // Ben is second: not his turn yet.
+        var benEarly = await _phone.Post($"/api/visits/{ben.Token}/pass", new { computerId = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, benEarly.StatusCode);
+        Assert.Equal(2, (await _phone.GetJson<VisitDto>($"/api/visits/{ben.Token}")).Waitlist!.Position);
+
+        // Ana does not pick within 5 minutes.
+        Advance(TimeSpan.FromMinutes(5));
+        await _factory.Heartbeat(1);
+
+        var anaView = await _phone.GetJson<VisitDto>($"/api/visits/{ana.Token}");
+        Assert.Equal(WaitlistStatus.Missed, anaView.Waitlist!.Status);
+
+        var benView = await _phone.GetJson<VisitDto>($"/api/visits/{ben.Token}");
+        Assert.Equal(1, benView.Waitlist!.Position);
+        Assert.NotNull(benView.Waitlist.ComputerReadyUntil);
+        await _phone.Pick(ben.Token, 1);
+    }
+
+    [Fact]
+    public async Task Getting_a_pc_counts_as_using_ict_equipment()
+    {
+        await _factory.Heartbeat(1);
+        var visit = await _phone.PostJson<CreatedVisitDto>("/api/visits", new
+        {
+            firstName = "Ana", lastName = "Reyes", ageGroup = "Age31To59", sex = "Female",
+            sectors = new[] { "Msme" }, services = new[] { "Connectivity" } // forgot to tick ICT equipment
+        });
+        var picked = await _phone.Pick(visit.Token, 1);
+        await _staff.PostJson<SessionDto>("/api/passes/check-in", new { code = picked.Pass!.Code });
+
+        var logged = (await _staff.GetJson<List<StaffVisitDto>>("/api/visits")).Single();
+        Assert.Equal(new[] { ServiceAvailed.Connectivity, ServiceAvailed.IctEquipment }, logged.Services);
+    }
+
+    [Fact]
     public async Task Cleanup_ends_sessions_at_the_time_limit_and_expires_passes()
     {
         var session = await WalkInSession(1);

@@ -66,14 +66,23 @@ public class SessionService
     // ---- Starting ----------------------------------------------------------
 
     // Builds a new session (the caller adds it and saves, inside its transaction).
-    public UsageSession Begin(int computerId, Visit visit, Pass? pass, DateTime now) => new()
+    // The visit's services must be loaded.
+    public UsageSession Begin(int computerId, Visit visit, Pass? pass, DateTime now)
     {
-        ComputerId = computerId,
-        Visit = visit,
-        Pass = pass,
-        StartedAt = now,
-        ScheduledEndAt = now.AddMinutes(_options.SessionMinutes)
-    };
+        // Using a PC is "Use of ICT Equipment", even if the visitor did not tick it,
+        // so the reports never show a PC session without it.
+        if (visit.Services.All(s => s.Service != ServiceAvailed.IctEquipment))
+            visit.Services.Add(new VisitServiceAvailed { Service = ServiceAvailed.IctEquipment });
+
+        return new UsageSession
+        {
+            ComputerId = computerId,
+            Visit = visit,
+            Pass = pass,
+            StartedAt = now,
+            ScheduledEndAt = now.AddMinutes(_options.SessionMinutes)
+        };
+    }
 
     // ---- Ending ------------------------------------------------------------
 

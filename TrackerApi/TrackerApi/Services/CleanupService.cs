@@ -5,7 +5,8 @@ namespace TrackerApi.Services;
 // Runs in the background for as long as the API runs. Every few seconds it:
 //  - marks unscanned passes past their expiry as Expired (frees the PC),
 //  - ends sessions past their time limit,
-//  - drops people who have been on the waitlist too long.
+//  - moves the waitlist along: drops people who waited too long or missed
+//    their turn, and holds freed PCs for the next people in line.
 // The kiosk app sees the ended session on its next refresh and locks the PC.
 public class CleanupService : BackgroundService
 {
@@ -44,7 +45,7 @@ public class CleanupService : BackgroundService
     {
         var expiredPasses = await services.GetRequiredService<PassService>().ExpireOldAsync();
         var endedSessions = await services.GetRequiredService<SessionService>().EndOverdueAsync();
-        var expiredWaits = await services.GetRequiredService<WaitlistService>().ExpireOldAsync();
+        var expiredWaits = await services.GetRequiredService<WaitlistService>().RefreshAsync();
 
         if (expiredPasses + endedSessions + expiredWaits > 0)
         {

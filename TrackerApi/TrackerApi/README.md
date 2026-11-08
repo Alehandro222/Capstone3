@@ -10,6 +10,10 @@ Backend for the DTC Baguio digital login and its public computers. Visitors log 
 4. **PC:** the kiosk app sees the session and unlocks. During the last 10 minutes the visitor can extend by 1 hour (at most twice), but only if nobody is on the waitlist.
 5. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit.
 
+**The waitlist is first come, first served.** When a PC frees up, it is held for the person who has waited longest. Their phone says a computer is ready, and they have 5 minutes to pick it; nobody else can take it meanwhile. If they don't pick in time, they are marked `Missed` and the next person gets it. (Staff can still give a PC to a walk-in at the desk.)
+
+**Using a PC counts as "Use of ICT Equipment"**: it is added to the visit automatically when the session starts, even if the visitor didn't tick it.
+
 **Visitors without a phone** are registered by staff: at the desk (`POST /api/visits/walk-in`, with or without a PC), or on the PC itself through the kiosk app's staff-only form (behind the staff PIN). Every session belongs to a registered visit, so every session has the full registration data for the reports.
 
 ### The registration form
@@ -116,7 +120,8 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `ExtendWindowMinutes` | Extending is allowed only in the last N minutes | `10` |
 | `OfflineAfterSeconds` | No heartbeat for this long → Offline | `30` |
 | `RequireHeartbeat` | `false` = never Offline (development only) | `true` |
-| `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `120` |
+| `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `240` |
+| `WaitlistOfferMinutes` | A freed PC is held this long for the first person waiting | `5` |
 | `CleanupIntervalSeconds` | How often passes expire and overdue sessions end | `15` |
 
 ### Rate limits (section `RateLimits`)

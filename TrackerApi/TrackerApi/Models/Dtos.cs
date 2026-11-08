@@ -63,7 +63,8 @@ public record WaitlistStatusDto(
     WaitlistStatus Status,
     int? Position, // 1 = next in line; null when no longer waiting
     int AvailableComputers,
-    DateTime ExpiresAt);
+    DateTime ExpiresAt,
+    DateTime? ComputerReadyUntil); // set when a free PC is held for them: pick before this time
 
 // Everything the phone needs about its own visit. The phone checks this every few seconds.
 public record VisitDto(
@@ -114,7 +115,8 @@ public record WaitlistEntryDto(
     WaitlistStatus Status,
     int? Position,
     DateTime CreatedAt,
-    DateTime ExpiresAt);
+    DateTime ExpiresAt,
+    DateTime? ComputerReadyUntil);
 
 public record ProblemReportDto(
     int Id,

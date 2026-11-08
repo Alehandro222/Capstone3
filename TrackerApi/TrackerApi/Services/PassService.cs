@@ -59,6 +59,8 @@ public class PassService
                 ? "That computer was just taken. Please choose another."
                 : $"That computer is {SessionService.Describe(status)}. Please choose another.");
 
+        // First come, first served: free PCs are held for the people waiting.
+        await _waitlist.EnsureMayPickAsync(visit);
         await _waitlist.MarkServedAsync(visit, now);
 
         _db.Passes.Add(new Pass
