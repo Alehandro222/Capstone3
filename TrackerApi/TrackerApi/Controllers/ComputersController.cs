@@ -17,21 +17,19 @@ public class ComputersController : ControllerBase
 {
     private readonly TrackerDbContext _db; // "readonly" is similar to Java's "final"
     private readonly ComputerStatusService _status;
-    private readonly ProblemService _problems;
     private readonly SessionService _sessions;
     private readonly TimeProvider _clock;
     private readonly AuditService _audit;
     private readonly KioskPairingService _pairing;
 
     // The framework injects these automatically (registered in Program.cs).
-    public ComputersController(TrackerDbContext db, ComputerStatusService status, ProblemService problems,
+    public ComputersController(TrackerDbContext db, ComputerStatusService status,
         SessionService sessions, TimeProvider clock, AuditService audit, KioskPairingService pairing)
     {
         _pairing = pairing;
         _audit = audit;
         _db = db;
         _status = status;
-        _problems = problems;
         _sessions = sessions;
         _clock = clock;
     }
@@ -96,35 +94,5 @@ public class ComputersController : ControllerBase
     {
         if (!await _db.Computers.AnyAsync(c => c.Id == id)) throw TrackerException.NotFound("Computer not found.");
         return await _sessions.GetHistoryAsync(id, null, null, limit);
-    }
-
-    // PUT api/computers/1/status   body: { "status": "Maintenance" } or { "status": "Available" }
-    // Kept for the current dashboard's "Report broken" / "Mark as fixed" buttons.
-    // Status is never stored: Maintenance opens a problem report, Available resolves them.
-    [HttpPut("{id:int}/status")]
-    public async Task<IActionResult> UpdateStatus(int id, UpdateComputerStatusRequest request)
-    {
-        if (!await _db.Computers.AnyAsync(c => c.Id == id)) throw TrackerException.NotFound("Computer not found.");
-
-        switch (request.Status)
-        {
-            case ComputerStatus.Maintenance:
-                if (await _db.Sessions.AnyAsync(s => s.ComputerId == id && s.EndedAt == null))
-                    throw TrackerException.Conflict("End the active session first.");
-                if (!await _db.ProblemReports.AnyAsync(r => r.ComputerId == id && r.Status == ProblemStatus.Open))
-                {
-                    var report = await _problems.OpenAsync(new CreateProblemRequest(id, "Marked out of service from the dashboard."));
-                    await _audit.RecordAsync("problem.open", "ProblemReport", report.Id, $"computer {id}: {report.Description}");
-                }
-                return NoContent();
-
-            case ComputerStatus.Available:
-                await _problems.ResolveAllForComputerAsync(id, "Marked as fixed from the dashboard.");
-                await _audit.RecordAsync("problem.resolve_all", "Computer", id, "Marked as fixed from the dashboard.");
-                return NoContent();
-
-            default:
-                throw TrackerException.BadRequest("Only Maintenance or Available can be set by hand.");
-        }
     }
 }

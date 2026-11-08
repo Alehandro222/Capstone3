@@ -10,7 +10,7 @@ show a QR pass at the help desk, and the session runs on the PC with a time limi
 |---|---|---|
 | `TrackerApi/TrackerApi` | ASP.NET Core 8 API + SQLite (EF Core migrations) | `dotnet run` (port 5080) |
 | `TrackerApi/TrackerApi.Tests` | xUnit tests: whole API in memory, fake clock | `dotnet test` |
-| `tracker-web/tracker-web` | React + Vite: staff dashboard (`/`), visitor phone app (`#/visit`), entrance poster (`#/poster`) | `npm run dev` (5173), `npm run dev:lan` for phones |
+| `tracker-web/tracker-web` | React + Vite: staff dashboard (`/`, tabs: help desk, computers, waitlist, problems, help requests, visitor log, admin), visitor phone app (`#/visit`), entrance poster (`#/poster`) | `npm run dev` (5173), `npm run dev:lan` for phones |
 | `KioskApp` | WPF app on each library PC: lock screen, session bar, staff menu | `dotnet run` |
 
 The READMEs in each folder are the reference for routes, settings and rules. Read them before changing a part.
@@ -21,11 +21,8 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 1. ~~Core server: visits, passes, sessions, status, waitlist, cleanup job~~ (done)
 2. ~~Staff sign-in (local accounts), roles, per-PC kiosk keys, rate limits, audit log~~ (done)
 3. ~~Visitor phone app + entrance QR poster~~ (done)
-4. **Staff dashboard rebuild** (next): QR scanner + 6-digit code check-in, walk-ins, live board with
-   Reserved/Offline and countdowns, end/extend sessions, problem reports + per-PC history, waitlist,
-   staff account admin, audit log viewer, PC pairing codes (today via Swagger), remove the old
-   `PUT /api/computers/{id}/status` "Report broken" route, fix "Cannot reach the API" sticking while the API starts
-5. Kiosk app polish: Reserved screen, time-left warning, extend button, lock-screen QR; staff PIN is still plain text in `kiosk.settings.json`
+4. ~~Staff dashboard rebuild: QR/code check-in, walk-ins, live board, end/extend, problem reports + per-PC history, waitlist, visitor log, staff accounts, audit log, pairing codes; old `PUT /api/computers/{id}/status` removed~~ (done)
+5. **Kiosk app polish** (next): Reserved screen, time-left warning, extend button, lock-screen QR; staff PIN is still plain text in `kiosk.settings.json`
 6. Reports (sessions per day/hour, by sector, by age group, hours per PC) + CSV/Excel export
 7. Gemini monthly-report assistant (partner wants Gemini, free tier): send **only aggregated counts**, never names or individual records (free-tier data may be used by Google)
 8. Deployment: HTTPS, Production settings (`RequireHeartbeat: true`, no Swagger), backups, data retention
@@ -46,7 +43,7 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 
 - **How long to keep visitor names** (data retention) – user will confirm with DTC.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Branch `phase-1-core-server` holds all work so far; `master` only has the first commit. Nothing pushed yet (remote: `Alehandro222/Capstone3`). Ask before merging or pushing.
+- Phases 1-3 are on `master` (pushed to `Alehandro222/Capstone3`). Phase 4 is on branch `phase-4-dashboard`, not merged or pushed. Ask before merging or pushing.
 
 ## Working notes
 

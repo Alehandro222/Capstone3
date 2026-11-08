@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { api } from '../api'
+import { api, isUnreachable } from '../api'
 import './auth.css'
 
-export default function Login({ onSignedIn, startupError }) {
+// apiDown: the API cannot be reached right now. StaffGate keeps checking and clears
+// it as soon as the API answers, so the message never outlives the problem.
+export default function Login({ onSignedIn, apiDown, onUnreachable }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(startupError ?? '')
+  const [error, setError] = useState('')
 
   async function submit(event) {
     event.preventDefault()
@@ -15,8 +17,12 @@ export default function Login({ onSignedIn, startupError }) {
     try {
       onSignedIn(await api.login(username, password))
     } catch (e) {
-      setError(e instanceof TypeError ? 'Cannot reach the API. Is it running?' : e.message)
-      setPassword('')
+      if (isUnreachable(e)) {
+        onUnreachable() // shown as apiDown until the API answers again
+      } else {
+        setError(e.message)
+        setPassword('')
+      }
     } finally {
       setBusy(false)
     }
@@ -30,7 +36,12 @@ export default function Login({ onSignedIn, startupError }) {
           <p className="muted">Computer System Tracker</p>
         </div>
 
-        {error && (
+        {apiDown && (
+          <p className="auth-error" role="alert">
+            Cannot reach the API. It may still be starting; this message goes away when it answers.
+          </p>
+        )}
+        {error && !apiDown && (
           <p className="auth-error" role="alert">
             {error}
           </p>

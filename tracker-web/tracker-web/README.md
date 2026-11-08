@@ -46,39 +46,57 @@ From the Figma Make design ("LibPC Mobile Web App"):
 
 The phone keeps its visit token (in the browser's local storage), so closing or reloading the page does not lose the visit. It checks the visit every 3 seconds. **Done** forgets it.
 
-## Dashboard (`/`)
+## Staff dashboard (`/`)
 
-- Shows every computer as a card: status, current user, purpose, how long they've been on.
-- Lists the peripherals connected to each computer. While a session is running, a device can be toggled "In use" (headset, tablet, mic...).
-- **Register visitor** on a free computer: the DTC registration form for a visitor without a phone. Their session starts straight away.
-- **Log a visit (no computer):** the same form, for visitors who only need Wi-Fi, a desk or eGov help.
-- End sessions, report a computer broken, mark it fixed.
-- "Need help?" sends an assist request to the API.
-- Refreshes automatically every 5 seconds.
+Sign in first. The dashboard refreshes every 5 seconds. Tabs:
+
+| Tab | What staff do there |
+|---|---|
+| **Help desk** | **Check visitors in**: scan the QR pass with the camera (**Scan QR with camera**), or type the 6-digit code (a USB barcode scanner also works: it types into the same box). The visitor's details (name, age group, sex, sectors, purpose, PC, pass status) show first; **Check in and start session** starts the 3-hour session. Also lists PCs reserved and waiting to be scanned, **Register and give a PC** / **Log a visit (no PC)** for visitors without a phone, and the waitlist. |
+| **Computers** | Live board: every PC with its status (Available, Reserved, In use, Maintenance, Offline), who is on it, a countdown to the end of the session (red in the last 10 minutes), **Extend 1 h** (when the rules allow it; hover for why not), **End session** (asks first), **Register visitor** on a free PC, peripherals. **Details** shows the PC's problem reports, its session history and (admins) kiosk pairing. Admins can **Add a PC**. |
+| **Waitlist** | Everyone waiting, in order; when a PC is held for the first person, the time they have left to pick it. |
+| **Problems** | Open problem reports (**Report a problem**, **Resolve** with optional notes) and recently resolved ones. A PC with an open report shows as Maintenance. |
+| **Help requests** | "Need help?" requests from the kiosk app on each PC. |
+| **Visitor log** | Every visit logged on a chosen day (phone, help desk or kiosk), with the DTC form answers. |
+| **Staff accounts** (admin) | Add accounts, edit name / role / active, set a new password, unlock after too many wrong passwords. Accounts are deactivated, never deleted. |
+| **Audit log** (admin) | Who did what and when, filtered by person, kind of action and dates. |
+
+**Pairing a PC's kiosk app** (admin): Computers → **Details** → **Create pairing code**, then type the code into the kiosk app's "Set up this computer" screen. **Unpair** stops the PC's key at once.
+
+**Camera:** browsers only allow the camera on `https://` or on `localhost`. On the help-desk PC, open the dashboard as `http://localhost:5173`; on another address, type the code instead (or use a USB scanner) until the site runs on HTTPS (phase 8).
+
+**If the API is down or still starting**, the sign-in screen says "Cannot reach the API" and keeps checking every 3 seconds; the message goes away, and the dashboard opens if you were signed in, as soon as the API answers. The dev server answers `502` with that message while the API is unreachable (`vite.config.js`).
+
+Everyone can **Change password** (top of the page).
 
 ## Structure
 
 ```
 src/
-  main.jsx                   entry point
-  App.jsx                    loads data, owns state, handles actions
+  main.jsx                   entry point: picks the page from the address (#/visit, #/poster, else dashboard)
+  App.jsx                    staff dashboard: loads data every 5 s, tabs, dialogs, actions
   auth/
-    StaffGate.jsx            shows the sign-in screen until a staff member is signed in
+    StaffGate.jsx            shows the sign-in screen until a staff member is signed in; retries while the API is down
     Login.jsx                username + password
   api.js                     every call to the C# API
+  dashboard/
+    HelpDesk.jsx             check-in (code or QR), reserved passes, walk-ins, waitlist summary
+    QrScanner.jsx            camera QR reader (jsQR)
+    Board.jsx                live board of PCs with countdowns, end / extend
+    ComputerDetails.jsx      one PC: problem reports, session history, kiosk pairing
+    Problems.jsx             open and resolved problem reports
+    Waitlist.jsx             the line, in order
+    VisitorLog.jsx           visits on a chosen day
+    StaffAccounts.jsx        admin: staff accounts
+    AuditLog.jsx             admin: audit log with filters
+    format.js, ui.jsx        labels, time formatting, dialogs
+    dashboard.css
   components/
-    ComputerCard.jsx         one computer
+    HelpRequests.jsx         help requests from the PCs
     PeripheralList.jsx       devices on a computer
-    Modal.jsx                reusable form dialog
-    WalkInDialog.jsx         the registration form for walk-ins
+    WalkInDialog.jsx         the registration form for visitors without a phone
   registration.js            the form's choices and privacy statement (shared with the phone app)
   visitor/                   the visitor phone app (#/visit) and the entrance poster (#/poster)
-    VisitorApp.jsx           decides which screen to show from the visit; keeps the token
-    RegisterScreen.jsx       the DTC login form
-    ComputersScreen.jsx      live PC grid; pick a PC; join the waitlist
-    VisitScreens.jsx         welcome, QR pass, time left, waitlist, messages
-    EntrancePoster.jsx       printable QR poster
-    visitor.css              the Figma design (all classes start with "v-")
   time.js                    reads the API's UTC times
   styles.css
 ```

@@ -70,6 +70,7 @@ public class ComputerStatusService
                 c.Id,
                 c.Name,
                 c.LastHeartbeatAt,
+                c.PairedAt,
                 Problem = c.ProblemReports.Where(r => r.Status == ProblemStatus.Open)
                     .OrderBy(r => r.CreatedAt).Select(r => r.Description).FirstOrDefault(),
                 Peripherals = c.Peripherals
@@ -91,7 +92,8 @@ public class ComputerStatusService
                 c.LastHeartbeatAt,
                 session?.Id,
                 session?.ScheduledEndAt,
-                c.Problem);
+                c.Problem,
+                c.PairedAt);
         }).ToList();
     }
 

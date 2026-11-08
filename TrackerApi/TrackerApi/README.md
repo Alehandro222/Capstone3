@@ -161,13 +161,12 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals |
+| GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals, `pairedAt` (when its kiosk app was paired; `null` = not paired) |
 | GET | `/api/computers/{id}` | One PC, same details |
 | GET | `/api/computers/{id}/sessions` | Session history for one PC |
 | POST | `/api/computers` | Add a PC (admin) |
 | POST | `/api/computers/{id}/pairing-code` | One-time code to pair that PC's kiosk app (admin) |
 | POST | `/api/computers/{id}/unpair` | Cancel that PC's key (admin) |
-| PUT | `/api/computers/{id}/status` | `Maintenance` opens a problem report, `Available` resolves them (for the current dashboard) |
 | GET | `/api/visits` | The visitor log, newest first (`?from=&to=&limit=`) |
 | POST | `/api/visits/walk-in` | Visitor without a phone: the form plus an optional `computerId` (starts the session right away; without it the visit is only logged) |
 | POST | `/api/passes/lookup` | `{ token }` (the QR) or `{ code }` → the pass and the visitor's details |
@@ -178,7 +177,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | GET | `/api/sessions/{id}` | One session |
 | POST | `/api/sessions/{id}/end` | End a session. Recorded as ended by staff; the only reason allowed is `Staff` |
 | POST | `/api/sessions/{id}/extend` | Extend a session |
-| GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report |
+| GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report (the PC shows as Maintenance until every open report on it is resolved) |
 | PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
 | GET | `/api/waitlist` | Everyone waiting, in order |
 | GET / POST | `/api/assist` | Help requests (`?status=Open`) / create one `{ computerId, message }` (500 characters max) |

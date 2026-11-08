@@ -27,7 +27,8 @@ public record ComputerDto(
     DateTime? LastHeartbeatAt,
     int? ActiveSessionId,
     DateTime? SessionEndsAt,
-    string? OpenProblem);
+    string? OpenProblem,
+    DateTime? PairedAt); // when its kiosk app was paired; null = not paired
 
 // Public view of a computer for visitors' phones: no names, nothing personal.
 public record PublicComputerDto(int Id, string Name, ComputerStatus Status);
@@ -206,7 +207,6 @@ public record CheckInRequest(string? Token, string? Code);
 public record EndSessionRequest(SessionEndReason? Reason);
 
 public record CreateComputerRequest(string Name);
-public record UpdateComputerStatusRequest(ComputerStatus Status);
 
 public record CreateProblemRequest(int ComputerId, string? Description);
 public record ResolveProblemRequest(string? Notes);

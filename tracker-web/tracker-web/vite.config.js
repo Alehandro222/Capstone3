@@ -13,7 +13,19 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api': API,
+        '/api': {
+          target: API,
+          // API down or still starting: answer 502 with a message the pages can show,
+          // instead of the default empty 500 (which looks like an API bug).
+          configure: (proxy) => {
+            proxy.on('error', (_err, _req, res) => {
+              if (!res.headersSent && res.writeHead) {
+                res.writeHead(502, { 'Content-Type': 'application/json' })
+              }
+              res.end?.(JSON.stringify({ message: 'Cannot reach the API. Is it running?' }))
+            })
+          },
+        },
       },
     },
   }
