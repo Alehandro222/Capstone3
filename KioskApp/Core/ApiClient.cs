@@ -29,9 +29,9 @@ public sealed class ApiClient : IDisposable
 
     private readonly HttpClient _http;
 
-    // kioskKey: the shared secret from kiosk.settings.json; the API refuses the kiosk without it.
-    // computerId: read on every request, so the audit log shows which PC did what.
-    public ApiClient(string baseUrl, string kioskKey, Func<int> computerId)
+    // kioskKey and computerId are read on every request, because pairing changes them.
+    // The API only accepts this PC's own key, and only for this PC.
+    public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId)
     {
         var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = new HttpClientHandler() };
         _http = new HttpClient(handler)
@@ -41,38 +41,25 @@ public sealed class ApiClient : IDisposable
         };
     }
 
-    public Task<List<ComputerDto>> GetComputersAsync(CancellationToken ct = default) =>
-        GetAsync<List<ComputerDto>>("api/computers", ct);
+    // Trades a one-time pairing code (typed by staff) for this PC's key.
+    public Task<KioskPairedDto> PairAsync(string code, CancellationToken ct = default) =>
+        PostAsync<KioskPairedDto>("api/kiosk/pair", new { code }, ct);
 
-    public Task<ComputerDto> GetComputerAsync(int id, CancellationToken ct = default) =>
-        GetAsync<ComputerDto>($"api/computers/{id}", ct);
+    // "This PC is on" (every few seconds); answers with this PC and its session.
+    public Task<KioskStateDto> HeartbeatAsync(CancellationToken ct = default) =>
+        PostAsync<KioskStateDto>("api/kiosk/heartbeat", new { }, ct);
 
-    public async Task SendHeartbeatAsync(int computerId, CancellationToken ct = default)
-    {
-        using var response = await _http.PostAsync($"api/computers/{computerId}/heartbeat", null, ct);
-        await EnsureSuccessAsync(response, ct);
-    }
+    public Task<SessionDto> StartSessionAsync(string userName, string purpose, CancellationToken ct = default) =>
+        PostAsync<SessionDto>("api/kiosk/sessions", new { userName, purpose }, ct);
 
-    public Task<List<SessionDto>> GetActiveSessionsAsync(CancellationToken ct = default) =>
-        GetAsync<List<SessionDto>>("api/sessions/active", ct);
+    // reason: "Visitor" (Log out button) or "Idle" (automatic log out).
+    public Task<SessionDto> EndSessionAsync(string reason, CancellationToken ct = default) =>
+        PostAsync<SessionDto>("api/kiosk/session/end", new { reason }, ct);
 
-    public Task<SessionDto> StartSessionAsync(int computerId, string userName, string purpose, CancellationToken ct = default) =>
-        PostAsync<SessionDto>("api/sessions/start", new { computerId, userName, purpose }, ct);
-
-    public Task<SessionDto> EndSessionAsync(int sessionId, CancellationToken ct = default) =>
-        PostAsync<SessionDto>($"api/sessions/{sessionId}/end", new { }, ct);
-
-    public Task<AssistDto> CreateAssistAsync(int computerId, string message, CancellationToken ct = default) =>
-        PostAsync<AssistDto>("api/assist", new { computerId, message }, ct);
+    public Task<AssistDto> CreateAssistAsync(string message, CancellationToken ct = default) =>
+        PostAsync<AssistDto>("api/kiosk/help", new { message }, ct);
 
     public void Dispose() => _http.Dispose();
-
-    private async Task<T> GetAsync<T>(string path, CancellationToken ct)
-    {
-        using var response = await _http.GetAsync(path, ct);
-        await EnsureSuccessAsync(response, ct);
-        return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
-    }
 
     private async Task<T> PostAsync<T>(string path, object body, CancellationToken ct)
     {
@@ -84,10 +71,10 @@ public sealed class ApiClient : IDisposable
     // Adds the kiosk's headers to every request.
     private sealed class KioskHeaders : DelegatingHandler
     {
-        private readonly string _key;
+        private readonly Func<string> _key;
         private readonly Func<int> _computerId;
 
-        public KioskHeaders(string key, Func<int> computerId)
+        public KioskHeaders(Func<string> key, Func<int> computerId)
         {
             _key = key;
             _computerId = computerId;
@@ -95,9 +82,13 @@ public sealed class ApiClient : IDisposable
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
-            if (!string.IsNullOrEmpty(_key)) request.Headers.Add("X-Kiosk-Key", _key);
+            var key = _key();
             var id = _computerId();
-            if (id > 0) request.Headers.Add("X-Kiosk-Computer-Id", id.ToString());
+            if (!string.IsNullOrEmpty(key) && id > 0)
+            {
+                request.Headers.Add("X-Kiosk-Key", key);
+                request.Headers.Add("X-Kiosk-Computer-Id", id.ToString());
+            }
             return base.SendAsync(request, ct);
         }
     }
@@ -108,7 +99,7 @@ public sealed class ApiClient : IDisposable
         if (response.IsSuccessStatusCode) return;
 
         if ((int)response.StatusCode == 401)
-            throw new ApiException(401, "The tracker refused this PC: the kiosk key in kiosk.settings.json is missing or wrong.");
+            throw new ApiException(401, "The tracker no longer accepts this PC. Staff need to pair it again.");
 
         var message = $"The tracker returned an error ({(int)response.StatusCode}).";
         try

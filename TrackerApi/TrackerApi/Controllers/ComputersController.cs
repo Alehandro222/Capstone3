@@ -10,7 +10,7 @@ namespace TrackerApi.Controllers;
 
 // [ApiController] and [Route] are attributes, like annotations in Java.
 // "api/[controller]" becomes "api/computers" (the class name minus "Controller").
-// Staff only, except the routes the kiosk app needs (marked StaffOrKiosk).
+// Staff only. (The kiosk app uses /api/kiosk instead; see KioskController.)
 [ApiController]
 [Route("api/[controller]")]
 public class ComputersController : ControllerBase
@@ -21,11 +21,13 @@ public class ComputersController : ControllerBase
     private readonly SessionService _sessions;
     private readonly TimeProvider _clock;
     private readonly AuditService _audit;
+    private readonly KioskPairingService _pairing;
 
     // The framework injects these automatically (registered in Program.cs).
     public ComputersController(TrackerDbContext db, ComputerStatusService status, ProblemService problems,
-        SessionService sessions, TimeProvider clock, AuditService audit)
+        SessionService sessions, TimeProvider clock, AuditService audit, KioskPairingService pairing)
     {
+        _pairing = pairing;
         _audit = audit;
         _db = db;
         _status = status;
@@ -36,15 +38,13 @@ public class ComputersController : ControllerBase
 
     // GET api/computers -> staff dashboard: status, who is using it, peripherals.
     [HttpGet]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
-    public async Task<List<ComputerDto>> GetAll() => await LoadAsync(null);
+    public async Task<List<ComputerDto>> GetAll() => await _status.GetStaffViewAsync(null);
 
     // GET api/computers/1
     [HttpGet("{id:int}")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<ActionResult<ComputerDto>> GetById(int id)
     {
-        var list = await LoadAsync(id);
+        var list = await _status.GetStaffViewAsync(id);
         if (list.Count == 0) return NotFound();
         return list[0];
     }
@@ -64,22 +64,29 @@ public class ComputersController : ControllerBase
         await _db.SaveChangesAsync();
 
         await _audit.RecordAsync("computer.create", "Computer", computer.Id, computer.Name);
-        var dto = (await LoadAsync(computer.Id))[0];
+        var dto = (await _status.GetStaffViewAsync(computer.Id))[0];
         return CreatedAtAction(nameof(GetById), new { id = computer.Id }, dto);
     }
 
-    // POST api/computers/1/heartbeat
-    // The kiosk app on each PC calls this every few seconds. A PC that stops
-    // calling it shows as Offline and cannot be picked or checked in.
-    [HttpPost("{id:int}/heartbeat")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
-    public async Task<IActionResult> Heartbeat(int id)
+    // POST api/computers/1/pairing-code   (admin)
+    // A one-time code (valid 15 minutes) that staff type into the kiosk app's
+    // setup screen on that PC. Pairing gives the PC a new key; the old one stops working.
+    [HttpPost("{id:int}/pairing-code")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<PairingCodeDto> CreatePairingCode(int id)
     {
-        var computer = await _db.Computers.FindAsync(id);
-        if (computer is null) return NotFound(new { message = "Computer not found." });
+        var code = await _pairing.CreateCodeAsync(id);
+        await _audit.RecordAsync("kiosk.pairing_code", "Computer", id, code.ComputerName);
+        return code;
+    }
 
-        computer.LastHeartbeatAt = _clock.UtcNow();
-        await _db.SaveChangesAsync();
+    // POST api/computers/1/unpair   (admin) -> the PC's kiosk app stops working until paired again
+    [HttpPost("{id:int}/unpair")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> Unpair(int id)
+    {
+        await _pairing.UnpairAsync(id);
+        await _audit.RecordAsync("kiosk.unpaired", "Computer", id);
         return NoContent();
     }
 
@@ -119,41 +126,5 @@ public class ComputersController : ControllerBase
             default:
                 return BadRequest(new { message = "Only Maintenance or Available can be set by hand." });
         }
-    }
-
-    // Builds the staff view of one computer (id) or all of them (null).
-    private async Task<List<ComputerDto>> LoadAsync(int? id)
-    {
-        var statuses = await _status.GetAllAsync();
-
-        var computers = await _db.Computers
-            .Where(c => id == null || c.Id == id)
-            .OrderBy(c => c.Id)
-            .Select(c => new
-            {
-                c.Id,
-                c.Name,
-                c.LastHeartbeatAt,
-                Session = c.Sessions.Where(s => s.EndedAt == null)
-                    .Select(s => new { s.Id, s.UserName, s.Purpose, s.ScheduledEndAt }).FirstOrDefault(),
-                Problem = c.ProblemReports.Where(r => r.Status == ProblemStatus.Open)
-                    .OrderBy(r => r.CreatedAt).Select(r => r.Description).FirstOrDefault(),
-                Peripherals = c.Peripherals
-                    .Select(p => new PeripheralDto(p.Id, p.Name, p.Type, p.ComputerId, p.IsInUse, p.InUseSince))
-                    .ToList()
-            })
-            .ToListAsync();
-
-        return computers.Select(c => new ComputerDto(
-            c.Id,
-            c.Name,
-            statuses[c.Id],
-            c.Session?.UserName,
-            c.Session?.Purpose,
-            c.Peripherals,
-            c.LastHeartbeatAt,
-            c.Session?.Id,
-            c.Session?.ScheduledEndAt,
-            c.Problem)).ToList();
     }
 }

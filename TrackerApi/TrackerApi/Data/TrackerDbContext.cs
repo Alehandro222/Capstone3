@@ -91,6 +91,8 @@ public class TrackerDbContext : DbContext
 
         // Text length limits (SQLite ignores these, but other databases use them).
         modelBuilder.Entity<Computer>().Property(c => c.Name).HasMaxLength(50);
+        modelBuilder.Entity<Computer>().Property(c => c.KioskKeyHash).HasMaxLength(64);
+        modelBuilder.Entity<Computer>().Property(c => c.PairingCodeHash).HasMaxLength(64);
         modelBuilder.Entity<Pass>().Property(p => p.FirstName).HasMaxLength(100);
         modelBuilder.Entity<Pass>().Property(p => p.LastName).HasMaxLength(100);
         modelBuilder.Entity<Pass>().Property(p => p.Code).HasMaxLength(6);

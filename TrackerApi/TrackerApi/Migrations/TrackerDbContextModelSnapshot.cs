@@ -108,12 +108,26 @@ namespace TrackerApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("KioskKeyHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastHeartbeatAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PairedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PairingCodeExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PairingCodeHash")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

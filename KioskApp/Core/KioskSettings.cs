@@ -12,13 +12,19 @@ public sealed class KioskSettings
 {
     private const string SettingsFileName = "kiosk.settings.json";
     private const string ComputerIdFileName = "computer-id.txt";
+    private const string KioskKeyFileName = "kiosk-key.txt";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public string ApiUrl { get; set; } = "http://localhost:5080/";
 
-    // Shared secret the tracker checks on every request (Kiosk:ApiKey on the server).
+    // This PC's secret key, received when staff paired it with a pairing code.
+    // Saved in the data folder (kiosk-key.txt), never in kiosk.settings.json.
+    [JsonIgnore]
     public string KioskKey { get; set; } = "";
+
+    [JsonIgnore]
+    public bool IsPaired => ComputerId > 0 && !string.IsNullOrEmpty(KioskKey);
 
     // The id of this computer in the tracker (see PC-01, PC-02... on the dashboard).
     // 0 = not chosen yet; the app shows a setup screen.
@@ -75,13 +81,30 @@ public sealed class KioskSettings
             settings.ComputerId = savedId;
         }
 
+        var keyPath = Path.Combine(dataDirectory, KioskKeyFileName);
+        if (File.Exists(keyPath)) settings.KioskKey = File.ReadAllText(keyPath).Trim();
+
         return settings;
     }
 
-    // Remembers the chosen computer. Throws if the folder cannot be written.
-    public void SaveComputerId()
+    // Remembers which PC this is and its key. Throws if the folder cannot be written.
+    public void SavePairing(int computerId, string kioskKey)
     {
         Directory.CreateDirectory(DataDirectory);
-        File.WriteAllText(Path.Combine(DataDirectory, ComputerIdFileName), ComputerId.ToString());
+        File.WriteAllText(Path.Combine(DataDirectory, KioskKeyFileName), kioskKey);
+        File.WriteAllText(Path.Combine(DataDirectory, ComputerIdFileName), computerId.ToString());
+        ComputerId = computerId;
+        KioskKey = kioskKey;
+    }
+
+    // Forgets the pairing, so the setup screen shows again (also after a restart).
+    public void ClearPairing()
+    {
+        ComputerId = 0;
+        KioskKey = "";
+        Directory.CreateDirectory(DataDirectory);
+        File.WriteAllText(Path.Combine(DataDirectory, ComputerIdFileName), "0");
+        var keyPath = Path.Combine(DataDirectory, KioskKeyFileName);
+        if (File.Exists(keyPath)) File.Delete(keyPath);
     }
 }

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TrackerApi.Auth;
 using TrackerApi.Models;
 using TrackerApi.Services;
 
@@ -27,6 +29,7 @@ public class PassesController : ControllerBase
     // body: { "computerId": 1, "firstName": "Juan", "lastName": "Dela Cruz", "age": 20,
     //         "sex": "Male", "purpose": "Schoolwork", "sectors": ["Youth", "Academe"] }
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimits.Passes)]
     [HttpPost]
     public Task<CreatedPassDto> Create(CreatePassRequest request) => _passes.CreateAsync(request);
 

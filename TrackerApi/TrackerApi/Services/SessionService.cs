@@ -48,6 +48,13 @@ public class SessionService
         return await ToDtosAsync(sessions);
     }
 
+    // The running session on one PC, or null.
+    public async Task<SessionDto?> GetActiveOnComputerAsync(int computerId)
+    {
+        var session = await _db.Sessions.FirstOrDefaultAsync(s => s.ComputerId == computerId && s.EndedAt == null);
+        return session is null ? null : (await ToDtosAsync(new[] { session }))[0];
+    }
+
     public async Task<SessionDto> GetAsync(int id)
     {
         var session = await _db.Sessions.FindAsync(id) ?? throw TrackerException.NotFound("Session not found.");

@@ -19,7 +19,6 @@ public partial class LockWindow : Window
     private bool _busy;
     private int _noticeId;
     private bool _staffMode;   // true while the staff PIN / menu panels are open
-    private bool _loadingSetup;
 
     public LockWindow(KioskController controller)
     {
@@ -69,8 +68,12 @@ public partial class LockWindow : Window
                 break;
 
             case KioskView.NeedsSetup:
+                if (SetupPanel.Visibility != Visibility.Visible) PairingCodeBox.Clear();
                 ShowPanel(SetupPanel);
-                LoadComputerList();
+                SetupError.Text = state.KeyRejected
+                    ? "The tracker no longer accepts this PC (an admin unpaired it, or it was paired again). Type a new pairing code."
+                    : "";
+                PairingCodeBox.Focus();
                 break;
 
             case KioskView.Farewell:
@@ -79,10 +82,6 @@ public partial class LockWindow : Window
 
             case KioskView.OutOfService:
                 ShowMessage("Out of service", "This computer isn't working. Please use another one or ask a staff member.");
-                break;
-
-            case KioskView.MissingComputer:
-                ShowMessage("This computer isn't set up", "The tracker doesn't know this computer. Please ask a staff member for help.");
                 break;
 
             case KioskView.Reserved:
@@ -208,28 +207,21 @@ public partial class LockWindow : Window
 
     // ---- Setup (first run) -------------------------------------------------
 
-    private async void LoadComputerList()
+    private async void SetupButton_Click(object sender, RoutedEventArgs e) => await PairAsync();
+
+    private async void PairingCodeBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (_loadingSetup) return;
-        _loadingSetup = true;
-
-        var (computers, error) = await _controller.GetComputersForSetupAsync();
-        ComputerList.ItemsSource = computers;
-        SetupError.Text = error is null ? "" : "Cannot load the computer list: " + error;
-
-        _loadingSetup = false;
+        if (e.Key == Key.Enter) await PairAsync();
     }
 
-    private async void SetupButton_Click(object sender, RoutedEventArgs e)
+    private async Task PairAsync()
     {
-        if (ComputerList.SelectedItem is not ComputerDto chosen)
-        {
-            SetupError.Text = "Select a computer from the list first.";
-            return;
-        }
-
-        var warning = await _controller.ChooseComputerAsync(chosen.Id);
-        SetupError.Text = warning ?? "";
+        if (_busy) return;
+        _busy = true;
+        SetupError.Text = "Pairing…";
+        var error = await _controller.PairAsync(PairingCodeBox.Text);
+        SetupError.Text = error ?? "";
+        _busy = false;
     }
 
     // ---- Staff exit (Ctrl+Shift+Q) -----------------------------------------
@@ -276,7 +268,7 @@ public partial class LockWindow : Window
 
     private void ChangeComputer_Click(object sender, RoutedEventArgs e)
     {
-        _controller.ChangeComputer();
+        _controller.Unpair();
         LeaveStaffMode();
     }
 

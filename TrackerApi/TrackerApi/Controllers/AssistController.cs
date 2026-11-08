@@ -35,7 +35,6 @@ public class AssistController : ControllerBase
 
     // POST api/assist   body: { "computerId": 1, "message": "I can't print my file" }
     [HttpPost]
-    [Authorize(Policy = Policies.StaffOrKiosk)] // the kiosk's "Need help?" button
     public async Task<ActionResult<AssistDto>> Create(CreateAssistRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Message))

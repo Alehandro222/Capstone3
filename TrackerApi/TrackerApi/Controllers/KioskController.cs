@@ -1,0 +1,123 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.RateLimiting;
+using TrackerApi.Auth;
+using TrackerApi.Data;
+using TrackerApi.Models;
+using TrackerApi.Services;
+
+namespace TrackerApi.Controllers;
+
+// Everything the kiosk app on a PC may do. The PC is identified by its key
+// (see KioskAuthHandler), never by an id in the URL or body, so a PC can only
+// ever see and change its OWN computer and session.
+[ApiController]
+[Route("api/kiosk")]
+[Authorize(Policy = Policies.Kiosk)]
+public class KioskController : ControllerBase
+{
+    private readonly TrackerDbContext _db;
+    private readonly TimeProvider _clock;
+    private readonly ComputerStatusService _status;
+    private readonly SessionService _sessions;
+    private readonly KioskPairingService _pairing;
+    private readonly AuditService _audit;
+
+    public KioskController(TrackerDbContext db, TimeProvider clock, ComputerStatusService status,
+        SessionService sessions, KioskPairingService pairing, AuditService audit)
+    {
+        _db = db;
+        _clock = clock;
+        _status = status;
+        _sessions = sessions;
+        _pairing = pairing;
+        _audit = audit;
+    }
+
+    private int ComputerId => User.KioskComputerId();
+
+    // POST api/kiosk/pair   body: { "code": "ABCD-2345" }
+    // The setup screen trades a one-time pairing code for this PC's secret key.
+    [HttpPost("pair")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimits.Pairing)]
+    public async Task<KioskPairedDto> Pair(PairKioskRequest request)
+    {
+        var paired = await _pairing.PairAsync(request.Code);
+        await _audit.RecordAsAsync(ActorType.Kiosk, null, $"Kiosk {paired.ComputerName}", "kiosk.paired",
+            "Computer", paired.ComputerId);
+        return paired;
+    }
+
+    // POST api/kiosk/heartbeat -> "this PC is on", answered with what the screens need.
+    // Called every few seconds; a PC that stops calling it shows as Offline.
+    [HttpPost("heartbeat")]
+    public async Task<KioskStateDto> Heartbeat()
+    {
+        var computer = await _db.Computers.FindAsync(ComputerId);
+        computer!.LastHeartbeatAt = _clock.UtcNow();
+        await _db.SaveChangesAsync();
+
+        var view = (await _status.GetStaffViewAsync(ComputerId))[0];
+        return new KioskStateDto(view, await _sessions.GetActiveOnComputerAsync(ComputerId));
+    }
+
+    // POST api/kiosk/sessions   body: { "userName": "Maria", "purpose": "Printing" }
+    // The kiosk's own login form (until check-in with a pass replaces it).
+    [HttpPost("sessions")]
+    public async Task<SessionDto> Start(KioskStartSessionRequest request)
+    {
+        var session = await _sessions.StartFromKioskFormAsync(
+            new StartSessionRequest(ComputerId, request.UserName, request.Purpose));
+        await _audit.RecordAsync("session.start", "Session", session.Id, $"computer {ComputerId}, {session.UserName}");
+        return session;
+    }
+
+    // POST api/kiosk/session/end   body (optional): { "reason": "Idle" }
+    // Ends THIS PC's session. Without a reason: the visitor pressed Log out.
+    [HttpPost("session/end")]
+    public async Task<SessionDto> End([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] EndSessionRequest? request)
+    {
+        var reason = request?.Reason ?? SessionEndReason.Visitor;
+        if (reason is not (SessionEndReason.Visitor or SessionEndReason.Idle))
+            throw TrackerException.BadRequest("The kiosk can only end a session as Visitor or Idle.");
+
+        var current = await CurrentSessionAsync();
+        var session = await _sessions.EndAsync(current.Id, reason);
+        await _audit.RecordAsync("session.end", "Session", session.Id, $"computer {ComputerId}, reason: {reason}");
+        return session;
+    }
+
+    // POST api/kiosk/session/extend -> THIS PC's session, if the extension rules allow it
+    [HttpPost("session/extend")]
+    public async Task<SessionDto> Extend()
+    {
+        var current = await CurrentSessionAsync();
+        var session = await _sessions.ExtendAsync(current.Id);
+        await _audit.RecordAsync("session.extend", "Session", session.Id,
+            $"now ends {session.ScheduledEndAt:u} (extension {session.ExtensionCount})");
+        return session;
+    }
+
+    // POST api/kiosk/help   body: { "message": "I can't print" } -> the "Need help?" button
+    [HttpPost("help")]
+    public async Task<AssistDto> Help(KioskHelpRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) throw TrackerException.BadRequest("Please describe what you need help with.");
+        if (message.Length > 500) throw TrackerException.BadRequest("Please keep it under 500 characters.");
+
+        var computer = await _db.Computers.FindAsync(ComputerId);
+        var ticket = new AssistTicket { ComputerId = ComputerId, Computer = computer, Message = message, CreatedAt = _clock.UtcNow() };
+        _db.AssistTickets.Add(ticket);
+        await _db.SaveChangesAsync();
+
+        return new AssistDto(ticket.Id, ticket.ComputerId, computer!.Name, ticket.Message, ticket.Status,
+            ticket.CreatedAt, ticket.ResolvedAt);
+    }
+
+    private async Task<SessionDto> CurrentSessionAsync() =>
+        await _sessions.GetActiveOnComputerAsync(ComputerId)
+        ?? throw TrackerException.Conflict("There is no session on this computer.");
+}

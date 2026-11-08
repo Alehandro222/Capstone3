@@ -1,6 +1,5 @@
 {
   "apiUrl": "http://localhost:5080/",
-  "kioskKey": "dev-kiosk-key",
   "computerId": 0,
   "kioskMode": false,
   "staffPin": "",

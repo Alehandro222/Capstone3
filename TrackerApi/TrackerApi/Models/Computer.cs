@@ -21,6 +21,16 @@ public class Computer
     // Last time the kiosk app on this PC said "I'm alive". null = never.
     public DateTime? LastHeartbeatAt { get; set; }
 
+    // The kiosk app's own secret key (SHA-256 hash only). Each PC has a different
+    // key, so a key copied from one PC can only ever act as that PC. null = not paired.
+    public string? KioskKeyHash { get; set; }
+    public DateTime? PairedAt { get; set; }
+
+    // A short one-time code an admin creates so staff can pair the kiosk app
+    // on this PC (hash only). It works once, and only until it expires.
+    public string? PairingCodeHash { get; set; }
+    public DateTime? PairingCodeExpiresAt { get; set; }
+
     // Navigation properties: EF Core uses these to build the relationships.
     public List<Peripheral> Peripherals { get; set; } = new();
     public List<UsageSession> Sessions { get; set; } = new();

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TrackerApi.Auth;
 using TrackerApi.Models;
 using TrackerApi.Services;
 
@@ -18,6 +20,7 @@ public class WaitlistController : ControllerBase
 
     // POST api/waitlist   body: { "firstName": "Ana" } (optional) -> only when no PC is free
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimits.WaitlistJoin)]
     [HttpPost]
     public Task<WaitlistJoinedDto> Join(JoinWaitlistRequest request) => _waitlist.JoinAsync(request);
 

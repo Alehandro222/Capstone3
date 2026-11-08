@@ -49,6 +49,43 @@ public class ComputerStatusService
             c => Decide(c.LastHeartbeatAt, inUse.Contains(c.Id), broken.Contains(c.Id), reserved.Contains(c.Id), now));
     }
 
+    // The staff view of one computer (id) or all of them (null): status, who is
+    // using it, when their session ends, any open problem, and peripherals.
+    public async Task<List<ComputerDto>> GetStaffViewAsync(int? id)
+    {
+        var statuses = await GetAllAsync();
+
+        var computers = await _db.Computers
+            .Where(c => id == null || c.Id == id)
+            .OrderBy(c => c.Id)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.LastHeartbeatAt,
+                Session = c.Sessions.Where(s => s.EndedAt == null)
+                    .Select(s => new { s.Id, s.UserName, s.Purpose, s.ScheduledEndAt }).FirstOrDefault(),
+                Problem = c.ProblemReports.Where(r => r.Status == ProblemStatus.Open)
+                    .OrderBy(r => r.CreatedAt).Select(r => r.Description).FirstOrDefault(),
+                Peripherals = c.Peripherals
+                    .Select(p => new PeripheralDto(p.Id, p.Name, p.Type, p.ComputerId, p.IsInUse, p.InUseSince))
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return computers.Select(c => new ComputerDto(
+            c.Id,
+            c.Name,
+            statuses[c.Id],
+            c.Session?.UserName,
+            c.Session?.Purpose,
+            c.Peripherals,
+            c.LastHeartbeatAt,
+            c.Session?.Id,
+            c.Session?.ScheduledEndAt,
+            c.Problem)).ToList();
+    }
+
     // Status of one computer. Throws 404 if it does not exist.
     public async Task<ComputerStatus> GetAsync(int computerId)
     {

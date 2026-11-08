@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TrackerApi.Auth;
 using TrackerApi.Models;
 using TrackerApi.Services;
@@ -26,6 +27,7 @@ public class AuthController : ControllerBase
     // POST api/auth/login   body: { "username": "maria", "password": "..." }
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimits.SignIn)]
     public async Task<ActionResult<StaffDto>> Login(LoginRequest request)
     {
         var result = await _staff.CheckPasswordAsync(request.Username, request.Password);

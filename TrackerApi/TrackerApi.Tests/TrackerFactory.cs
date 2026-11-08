@@ -19,13 +19,19 @@ namespace TrackerApi.Tests;
 //  - a fake clock the test can move forward ("10 minutes later..."),
 //  - heartbeats required, so Offline can be tested,
 //  - the background cleanup job off (tests run it by hand),
-//  - a known kiosk key.
+//  - rate limits off (RateLimitTests switch them on).
 public class TrackerFactory : WebApplicationFactory<Program>
 {
-    public const string KioskKey = "test-kiosk-key";
     public const string Password = "correct-horse-battery";
 
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private readonly bool _rateLimits;
+    private readonly Dictionary<int, HttpClient> _kiosks = new();
+
+    public TrackerFactory(bool rateLimits = false)
+    {
+        _rateLimits = rateLimits;
+    }
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 7, 1, 0, 0, TimeSpan.Zero));
 
@@ -38,7 +44,7 @@ public class TrackerFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("Tracker:RequireHeartbeat", "true");
         builder.UseSetting("Tracker:CleanupIntervalSeconds", "0");
-        builder.UseSetting("Kiosk:ApiKey", KioskKey);
+        builder.UseSetting("RateLimits:Enabled", _rateLimits ? "true" : "false");
 
         builder.ConfigureServices(services =>
         {
@@ -53,13 +59,39 @@ public class TrackerFactory : WebApplicationFactory<Program>
     // A browser with nobody signed in (a visitor's phone).
     public HttpClient Anonymous() => CreateClient();
 
-    // The kiosk app on a PC.
-    public HttpClient Kiosk(int? computerId = null, string key = KioskKey)
+    // The kiosk app on a PC, paired the real way: an admin creates a pairing
+    // code and the app trades it for its key. One client per PC.
+    public async Task<HttpClient> KioskAsync(int computerId)
+    {
+        if (_kiosks.TryGetValue(computerId, out var existing)) return existing;
+
+        var code = await NewPairingCodeAsync(computerId);
+        var client = CreateClient();
+        var paired = await client.PostJson<KioskPairedDto>("/api/kiosk/pair", new { code });
+        var kiosk = KioskWithKey(computerId, paired.KioskKey);
+        _kiosks[computerId] = kiosk;
+        return kiosk;
+    }
+
+    public async Task<string> NewPairingCodeAsync(int computerId)
+    {
+        using var scope = Services.CreateScope();
+        return (await scope.ServiceProvider.GetRequiredService<KioskPairingService>().CreateCodeAsync(computerId)).Code;
+    }
+
+    public HttpClient KioskWithKey(int computerId, string key)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("X-Kiosk-Key", key);
-        if (computerId is not null) client.DefaultRequestHeaders.Add("X-Kiosk-Computer-Id", computerId.ToString());
+        client.DefaultRequestHeaders.Add("X-Kiosk-Computer-Id", computerId.ToString());
         return client;
+    }
+
+    // The kiosk app on each of these PCs says "I'm on".
+    public async Task Heartbeat(params int[] computerIds)
+    {
+        foreach (var id in computerIds)
+            await (await KioskAsync(id)).PostJson<KioskStateDto>("/api/kiosk/heartbeat");
     }
 
     // Creates a staff account straight in the database.
@@ -125,12 +157,6 @@ public static class ApiExtensions
     {
         if (!response.IsSuccessStatusCode)
             throw new Exception($"{(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-    }
-
-    public static async Task Heartbeat(this HttpClient client, params int[] computerIds)
-    {
-        foreach (var id in computerIds)
-            (await client.PostAsync($"/api/computers/{id}/heartbeat", null)).EnsureSuccessStatusCode();
     }
 
     public static async Task<ComputerStatus> StatusOf(this HttpClient client, int computerId)

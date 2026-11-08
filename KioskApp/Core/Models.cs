@@ -50,6 +50,12 @@ public sealed record SessionDto(
     };
 }
 
+// From POST api/kiosk/heartbeat: this PC, and its running session (if any).
+public sealed record KioskStateDto(ComputerDto Computer, SessionDto? Session);
+
+// From POST api/kiosk/pair: which PC this is, and its secret key.
+public sealed record KioskPairedDto(int ComputerId, string ComputerName, string KioskKey);
+
 public sealed record AssistDto(
     int Id,
     int ComputerId,

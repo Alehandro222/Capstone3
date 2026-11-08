@@ -11,16 +11,17 @@ namespace TrackerApi.Auth;
 
 // Who may call what:
 //   Visitors' phones  -> no login; they prove who they are with their pass/waitlist token.
-//   Kiosk app on a PC -> sends the shared kiosk key in the X-Kiosk-Key header.
+//   Kiosk app on a PC -> sends its own PC's secret key (see KioskAuthHandler); it may
+//                        only use the /api/kiosk routes, and only for its own PC.
 //   Staff dashboard   -> signs in with a username and password and gets an HttpOnly cookie.
 //
 // Every endpoint needs a staff login unless it says otherwise
-// ([AllowAnonymous] or [Authorize(Policy = Policies.StaffOrKiosk)]).
+// ([AllowAnonymous] or [Authorize(Policy = Policies.Kiosk)]).
 public static class Policies
 {
     public const string Staff = "Staff";
     public const string Admin = "Admin";
-    public const string StaffOrKiosk = "StaffOrKiosk";
+    public const string Kiosk = "Kiosk";
 }
 
 public static class Roles
@@ -36,8 +37,6 @@ public static class AuthSetup
 
     public static IServiceCollection AddTrackerAuth(this IServiceCollection services, IConfiguration config)
     {
-        services.Configure<KioskOptions>(config.GetSection(KioskOptions.Section));
-
         services
             .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(o =>
@@ -69,9 +68,9 @@ public static class AuthSetup
                 .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme)
                 .RequireRole(Roles.Admin));
 
-            o.AddPolicy(Policies.StaffOrKiosk, p => p
-                .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, KioskAuthHandler.SchemeName)
-                .RequireRole(Roles.Staff, Roles.Admin, Roles.Kiosk));
+            o.AddPolicy(Policies.Kiosk, p => p
+                .AddAuthenticationSchemes(KioskAuthHandler.SchemeName)
+                .RequireRole(Roles.Kiosk));
 
             // Secure by default: anything not marked otherwise needs a staff login.
             o.FallbackPolicy = o.GetPolicy(Policies.Staff);

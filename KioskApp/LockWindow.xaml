@@ -88,12 +88,12 @@
                 <!-- Setup: staff choose which computer this is -->
                 <StackPanel x:Name="SetupPanel" Visibility="Collapsed">
                     <TextBlock Text="Set up this computer" FontSize="30" FontWeight="Bold"/>
-                    <TextBlock Text="Staff: choose which computer in the tracker this is." FontSize="18"
-                               Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                    <ListBox x:Name="ComputerList" DisplayMemberPath="Name" FontSize="20" Height="240"
-                             BorderThickness="2" BorderBrush="{StaticResource BorderBrush}" Margin="0,16,0,8"/>
+                    <TextBlock FontSize="18" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Staff: an admin creates a pairing code for this PC in the dashboard. Type it here."/>
+                    <TextBox x:Name="PairingCodeBox" FontSize="28" Margin="0,16,0,8" CharacterCasing="Upper"
+                             MaxLength="12" KeyDown="PairingCodeBox_KeyDown"/>
                     <TextBlock x:Name="SetupError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <Button Content="Use this computer" Style="{StaticResource PrimaryButton}" Click="SetupButton_Click"/>
+                    <Button Content="Pair this computer" Style="{StaticResource PrimaryButton}" Click="SetupButton_Click"/>
                 </StackPanel>
 
                 <!-- Staff PIN (Ctrl+Shift+Q) -->
@@ -116,7 +116,7 @@
                 <!-- Staff menu -->
                 <StackPanel x:Name="StaffMenuPanel" Visibility="Collapsed">
                     <TextBlock Text="Staff menu" FontSize="30" FontWeight="Bold" Margin="0,0,0,16"/>
-                    <Button Content="Change which computer this is" Style="{StaticResource BaseButton}" Click="ChangeComputer_Click" Margin="0,0,0,12"/>
+                    <Button Content="Unpair this computer" Style="{StaticResource BaseButton}" Click="ChangeComputer_Click" Margin="0,0,0,12"/>
                     <Button Content="Exit the kiosk" Style="{StaticResource DangerButton}" Click="ExitKiosk_Click" Margin="0,0,0,12"/>
                     <Button Content="Back" Style="{StaticResource BaseButton}" Click="StaffCancel_Click"/>
                 </StackPanel>

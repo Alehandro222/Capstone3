@@ -24,7 +24,7 @@ Everything is recorded through TrackerApi, so the staff dashboard shows the comp
 dotnet run
 ```
 
-3. The first time, a **Set up this computer** screen lists the computers from the tracker. Pick one (for example PC-01) and press **Use this computer**. The choice is remembered.
+3. The first time, a **Set up this computer** screen asks for a **pairing code**. An admin gets one for the PC (for example PC-01) from the API: sign in at http://localhost:5080/swagger, then call `POST /api/computers/1/pairing-code`. Type the code in and press **Pair this computer**. The pairing is remembered. (A dashboard button for this comes later.)
 4. Log in with a name and purpose, then check the dashboard at http://localhost:5173.
 
 If `dotnet run` says the target framework is not installed, open `KioskApp.csproj` and change `net8.0-windows` to your version plus `-windows`, for example `net9.0-windows`.
@@ -34,18 +34,17 @@ If `dotnet run` says the target framework is not installed, open `KioskApp.cspro
 | Setting | Meaning | Default |
 |---|---|---|
 | `apiUrl` | Address of TrackerApi. On the office PCs this must be the server's address, not `localhost`. | `http://localhost:5080/` |
-| `kioskKey` | Shared secret the API checks (`Kiosk:ApiKey` in the API's settings). **Change it for the library**: the default only works with the API in Development mode. | `dev-kiosk-key` |
 | `kioskMode` | `false`: normal window (for testing). `true`: fullscreen, always on top, cannot be closed. | `false` |
 | `staffPin` | PIN for staff (Ctrl+Shift+Q). In kiosk mode, an empty PIN disables the shortcut. | empty |
 | `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `1200` (20 min) |
 | `idleWarningSeconds` | Show a warning during the last N seconds. | `60` |
 | `refreshSeconds` | How often to check the tracker for changes made by staff. | `5` |
 
-Leave `computerId` as `0`. The setup screen saves the real one in `C:\ProgramData\ComputerTracker\computer-id.txt`.
+Leave `computerId` as `0`. Pairing saves which PC this is in `C:\ProgramData\ComputerTracker\computer-id.txt`, and the PC's own secret key in `kiosk-key.txt` next to it. The key only works as this PC. If you think it was copied, pair the PC again: that cancels the old key.
 
 ## Staff shortcut
 
-Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can change which computer this is, or exit the kiosk.
+Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can unpair this computer (the setup screen shows again), or exit the kiosk.
 
 ## Deploying to the office computers
 
@@ -57,8 +56,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 ```
 
 3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
-4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskKey` to the same value as `Kiosk:ApiKey` on the server, `kioskMode` to `true`, and a `staffPin`.
-5. Run `ComputerTrackerKiosk.exe` once, choose the computer on the setup screen, and test.
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, and a `staffPin`.
+5. Run `ComputerTrackerKiosk.exe` once. Type the pairing code an admin created for that PC, then test.
 6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
 
 ## Smart App Control

@@ -7,7 +7,7 @@ using TrackerApi.Services;
 
 namespace TrackerApi.Controllers;
 
-// Staff only, except the routes the kiosk app needs (marked StaffOrKiosk).
+// Staff only. (The kiosk app uses /api/kiosk instead; see KioskController.)
 [ApiController]
 [Route("api/[controller]")]
 public class SessionsController : ControllerBase
@@ -23,7 +23,6 @@ public class SessionsController : ControllerBase
 
     // GET api/sessions/active -> everyone currently using a computer
     [HttpGet("active")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
     public Task<List<SessionDto>> GetActive() => _sessions.GetActiveAsync();
 
     // GET api/sessions?computerId=1&from=2026-11-01&to=2026-12-01&limit=100 -> history, newest first
@@ -36,10 +35,9 @@ public class SessionsController : ControllerBase
     [HttpGet("{id:int}")]
     public Task<SessionDto> Get(int id) => _sessions.GetAsync(id);
 
-    // POST api/sessions/start   (the kiosk's own login form)
+    // POST api/sessions/start   (the dashboard's "Start session": name + purpose typed by staff)
     // body: { "computerId": 1, "userName": "Maria", "purpose": "Job application" }
     [HttpPost("start")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<SessionDto> Start(StartSessionRequest request)
     {
         var session = await _sessions.StartFromKioskFormAsync(request);
@@ -49,14 +47,12 @@ public class SessionsController : ControllerBase
     }
 
     // POST api/sessions/5/end   body (optional): { "reason": "Idle" }
-    // Frees the computer and its peripherals. Without a reason: "Staff" when
-    // staff end it, "Visitor" when the kiosk app does (the Log out button).
+    // Frees the computer and its peripherals. Without a reason it counts as ended by staff.
     [HttpPost("{id:int}/end")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<SessionDto> End(int id,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] EndSessionRequest? request)
     {
-        var reason = request?.Reason ?? (User.IsInRole(Roles.Kiosk) ? SessionEndReason.Visitor : SessionEndReason.Staff);
+        var reason = request?.Reason ?? SessionEndReason.Staff;
         var session = await _sessions.EndAsync(id, reason);
         await _audit.RecordAsync("session.end", "Session", id, $"computer {session.ComputerId}, reason: {reason}");
         return session;
@@ -64,7 +60,6 @@ public class SessionsController : ControllerBase
 
     // POST api/sessions/5/extend -> adds time, if the extension rules allow it
     [HttpPost("{id:int}/extend")]
-    [Authorize(Policy = Policies.StaffOrKiosk)]
     public async Task<SessionDto> Extend(int id)
     {
         var session = await _sessions.ExtendAsync(id);

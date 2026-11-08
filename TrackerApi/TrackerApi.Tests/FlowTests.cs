@@ -10,17 +10,15 @@ namespace TrackerApi.Tests;
 
 // Each test gets its own API + database (IClassFixture is NOT used on purpose).
 // _api is a staff member signed in to the dashboard (it also works for the
-// phone's routes, which need no sign-in); _kiosk is the kiosk app on the PCs.
+// phone's routes, which need no sign-in). _factory.Heartbeat(...) is the kiosk app on those PCs.
 public class FlowTests : IAsyncLifetime
 {
     private readonly TrackerFactory _factory = new();
     private HttpClient _api = null!;
-    private HttpClient _kiosk = null!;
 
     public async Task InitializeAsync()
     {
         _api = await _factory.SignedInAsync();
-        _kiosk = _factory.Kiosk();
     }
 
     public Task DisposeAsync()
@@ -38,7 +36,7 @@ public class FlowTests : IAsyncLifetime
     {
         Assert.Equal(ComputerStatus.Offline, await _api.StatusOf(1));
 
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         Assert.Equal(ComputerStatus.Available, await _api.StatusOf(1));
 
         Advance(TimeSpan.FromSeconds(31));
@@ -48,7 +46,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Open_problem_report_means_maintenance_and_resolving_it_frees_the_pc()
     {
-        await _kiosk.Heartbeat(3);
+        await _factory.Heartbeat(3);
         Assert.Equal(ComputerStatus.Maintenance, await _api.StatusOf(3)); // seeded report
 
         var open = await _api.GetJson<List<ProblemReportDto>>("/api/problems?status=Open&computerId=3");
@@ -61,7 +59,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Public_list_never_contains_visitor_names()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1, "Secret", "Person"));
         await _api.PostJson<SessionDto>("/api/passes/check-in", new { code = created.Pass.Code });
 
@@ -74,7 +72,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Pick_pc_get_pass_staff_check_in_then_end_from_phone()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
 
         // Phone: pick PC-01 and get a pass.
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
@@ -90,7 +88,7 @@ public class FlowTests : IAsyncLifetime
         Assert.Equal(Sex.Male, lookup.Sex);
 
         Advance(TimeSpan.FromMinutes(2));
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var session = await _api.PostJson<SessionDto>("/api/passes/check-in", new { code = created.Pass.Code });
         Assert.Equal("Juan Dela Cruz", session.UserName);
         Assert.Equal("Schoolwork", session.Purpose);
@@ -110,7 +108,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task A_pass_cannot_be_used_twice()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
         await _api.PostJson<SessionDto>("/api/passes/check-in", new { token = created.Token });
 
@@ -122,7 +120,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Second_visitor_cannot_take_a_reserved_pc()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
 
         var second = await _api.Post("/api/passes", ApiExtensions.Visitor(1, "Maria", "Santos"));
@@ -133,7 +131,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Cancelled_pass_frees_the_pc()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
 
         var cancelled = await _api.PostJson<VisitorPassDto>($"/api/passes/{created.Token}/cancel");
@@ -144,11 +142,11 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Unscanned_pass_expires_and_the_pc_can_be_picked_again()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
 
         Advance(TimeSpan.FromMinutes(10));
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
 
         var pass = await _api.GetJson<VisitorPassDto>($"/api/passes/{created.Token}");
         Assert.Equal(PassStatus.Expired, pass.Status);
@@ -164,7 +162,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Check_in_is_refused_when_the_pc_went_offline()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var created = await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
 
         Advance(TimeSpan.FromMinutes(1)); // no heartbeat for a minute
@@ -177,7 +175,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Registration_form_is_validated()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var response = await _api.Post("/api/passes", new
         {
             computerId = 1, firstName = "Juan", lastName = "Dela Cruz", age = 20, purpose = "Schoolwork",
@@ -197,7 +195,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Walk_in_starts_a_session_right_away()
     {
-        await _kiosk.Heartbeat(2);
+        await _factory.Heartbeat(2);
         var session = await _api.PostJson<SessionDto>("/api/passes/walk-in", ApiExtensions.Visitor(2, "Lola", "Reyes"));
         Assert.Equal("Lola Reyes", session.UserName);
         Assert.Equal(ComputerStatus.InUse, await _api.StatusOf(2));
@@ -211,7 +209,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Session_can_be_extended_only_near_the_end_and_at_most_twice()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var session = await _api.PostJson<SessionDto>("/api/passes/walk-in", ApiExtensions.Visitor(1));
         Assert.False(session.CanExtend);
 
@@ -237,11 +235,11 @@ public class FlowTests : IAsyncLifetime
     public async Task No_extension_while_someone_is_on_the_waitlist()
     {
         // Only PC-01 is online, and it is in use, so nothing is available.
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var session = await _api.PostJson<SessionDto>("/api/passes/walk-in", ApiExtensions.Visitor(1));
 
         Advance(TimeSpan.FromMinutes(175));
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
 
         var joined = await _api.PostJson<WaitlistJoinedDto>("/api/waitlist", new { firstName = "Ana" });
         Assert.Equal(1, joined.Entry.Position);
@@ -258,7 +256,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Cannot_join_the_waitlist_while_a_pc_is_free()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         var response = await _api.Post("/api/waitlist", new { firstName = "Ana" });
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -266,7 +264,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Cleanup_ends_sessions_at_the_time_limit_and_expires_passes()
     {
-        await _kiosk.Heartbeat(1, 2);
+        await _factory.Heartbeat(1, 2);
         var session = await _api.PostJson<SessionDto>("/api/passes/walk-in", ApiExtensions.Visitor(1));
         await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(2, "Maria", "Santos"));
 
@@ -286,9 +284,10 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Kiosk_login_form_and_dashboard_buttons_still_work()
     {
-        await _kiosk.Heartbeat(1);
-        var session = await _kiosk.PostJson<SessionDto>("/api/sessions/start",
-            new { computerId = 1, userName = "Maria", purpose = "Printing" });
+        await _factory.Heartbeat(1);
+        var kiosk = await _factory.KioskAsync(1);
+        var session = await kiosk.PostJson<SessionDto>("/api/kiosk/sessions",
+            new { userName = "Maria", purpose = "Printing" });
         Assert.Equal(session.StartedAt.AddHours(3), session.ScheduledEndAt);
 
         // The dashboard sends no body at all; the kiosk sends {}.
@@ -312,7 +311,7 @@ public class FlowTests : IAsyncLifetime
     [Fact]
     public async Task Times_read_back_from_the_database_are_marked_utc()
     {
-        await _kiosk.Heartbeat(1);
+        await _factory.Heartbeat(1);
         await _api.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
 
         var json = await _api.GetStringAsync("/api/passes?status=Pending"); // freshly loaded from SQLite

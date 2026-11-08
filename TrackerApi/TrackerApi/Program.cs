@@ -36,6 +36,10 @@ builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signe
 
 // Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).
 builder.Services.AddTrackerAuth(builder.Configuration);
+builder.Services.AddScoped<KioskPairingService>();
+
+// Limits how fast one device can sign in, take passes or join the waitlist (see Auth/RateLimits.cs).
+builder.Services.AddTrackerRateLimits(builder.Configuration);
 
 // Expires passes and ends overdue sessions in the background.
 builder.Services.AddHostedService<CleanupService>();
@@ -74,6 +78,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

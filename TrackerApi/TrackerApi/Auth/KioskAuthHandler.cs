@@ -3,26 +3,22 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TrackerApi.Data;
+using TrackerApi.Services;
 
 namespace TrackerApi.Auth;
-
-// The "Kiosk" section of appsettings.json.
-public class KioskOptions
-{
-    public const string Section = "Kiosk";
-
-    // The shared secret every kiosk app sends. Empty = kiosk apps cannot connect.
-    // Set the same value as "kioskKey" in each PC's kiosk.settings.json.
-    public string ApiKey { get; set; } = "";
-}
 
 public class KioskAuthOptions : AuthenticationSchemeOptions
 {
 }
 
-// Recognises the kiosk app by the X-Kiosk-Key header. The app also sends
-// X-Kiosk-Computer-Id, which is only used to label entries in the audit log.
+// Recognises the kiosk app on a PC. It sends two headers on every request:
+//   X-Kiosk-Computer-Id: 4
+//   X-Kiosk-Key:         the secret key PC-04 got when it was paired
+// The key is checked against PC-04's stored hash only, so a key copied from
+// one PC can never act as another PC.
 public class KioskAuthHandler : AuthenticationHandler<KioskAuthOptions>
 {
     public const string SchemeName = "Kiosk";
@@ -30,44 +26,53 @@ public class KioskAuthHandler : AuthenticationHandler<KioskAuthOptions>
     public const string ComputerHeader = "X-Kiosk-Computer-Id";
     public const string ComputerClaim = "kiosk_computer_id";
 
-    private readonly KioskOptions _kiosk;
+    private readonly TrackerDbContext _db;
 
     public KioskAuthHandler(IOptionsMonitor<KioskAuthOptions> options, ILoggerFactory logger, UrlEncoder encoder,
-        IOptions<KioskOptions> kiosk) : base(options, logger, encoder)
+        TrackerDbContext db) : base(options, logger, encoder)
     {
-        _kiosk = kiosk.Value;
+        _db = db;
     }
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.TryGetValue(KeyHeader, out var sent) || string.IsNullOrEmpty(sent))
-            return Task.FromResult(AuthenticateResult.NoResult()); // not a kiosk; maybe staff
+        if (!Request.Headers.TryGetValue(KeyHeader, out var key) || string.IsNullOrEmpty(key))
+            return AuthenticateResult.NoResult(); // not a kiosk
 
-        if (string.IsNullOrEmpty(_kiosk.ApiKey) || !SameSecret(sent.ToString(), _kiosk.ApiKey))
-            return Task.FromResult(AuthenticateResult.Fail("Wrong kiosk key."));
+        if (!int.TryParse(Request.Headers[ComputerHeader], out var computerId))
+            return AuthenticateResult.Fail("Missing computer id.");
 
-        var claims = new List<Claim>
+        var computer = await _db.Computers.AsNoTracking()
+            .Where(c => c.Id == computerId)
+            .Select(c => new { c.Id, c.Name, c.KioskKeyHash })
+            .FirstOrDefaultAsync();
+
+        if (computer?.KioskKeyHash is null || !SameHash(Secrets.Hash(key.ToString()), computer.KioskKeyHash))
+            return AuthenticateResult.Fail("This PC is not paired, or its key is wrong.");
+
+        var identity = new ClaimsIdentity(new[]
         {
-            new(ClaimTypes.Role, Roles.Kiosk),
-            new(ClaimTypes.Name, "Kiosk app"),
-        };
-        if (int.TryParse(Request.Headers[ComputerHeader], out var computerId))
-        {
-            claims.Add(new Claim(ComputerClaim, computerId.ToString()));
-            claims[1] = new Claim(ClaimTypes.Name, $"Kiosk app (computer {computerId})");
-        }
-
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
+            new Claim(ClaimTypes.Role, Roles.Kiosk),
+            new Claim(ClaimTypes.Name, $"Kiosk {computer.Name}"),
+            new Claim(ComputerClaim, computer.Id.ToString()),
+        }, SchemeName);
+        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName));
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties) =>
-        AuthSetup.WriteError(Response, 401, "Please sign in.");
+        AuthSetup.WriteError(Response, 401, "This PC is not paired with the tracker, or its key is wrong.");
 
     protected override Task HandleForbiddenAsync(AuthenticationProperties properties) =>
         AuthSetup.WriteError(Response, 403, "You do not have permission to do that.");
 
-    // Compares in constant time, so the key cannot be guessed by timing the answers.
-    private static bool SameSecret(string a, string b) =>
+    // Compares in constant time, so nothing can be learned from how long the answer takes.
+    private static bool SameHash(string a, string b) =>
         CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(a), Encoding.UTF8.GetBytes(b));
+}
+
+public static class KioskClaims
+{
+    // The PC this kiosk request comes from (only set for kiosk requests).
+    public static int KioskComputerId(this ClaimsPrincipal user) =>
+        int.Parse(user.FindFirstValue(KioskAuthHandler.ComputerClaim)!);
 }

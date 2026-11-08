@@ -27,25 +27,105 @@ public class AuthTests : IDisposable
 
         // The phone's own routes stay open.
         Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync("/api/public/computers")).StatusCode);
-        await _factory.Kiosk().Heartbeat(1);
+        await _factory.Heartbeat(1);
         var pass = await phone.PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
         Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync($"/api/passes/{pass.Token}")).StatusCode);
     }
 
     [Fact]
-    public async Task Kiosk_key_opens_only_the_kiosk_routes()
+    public async Task Kiosk_key_only_opens_the_kiosk_routes_for_its_own_pc()
     {
-        var kiosk = _factory.Kiosk();
-        Assert.Equal(HttpStatusCode.OK, (await kiosk.GetAsync("/api/computers")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await kiosk.GetAsync("/api/sessions/active")).StatusCode);
-        await kiosk.Heartbeat(1);
+        var pc1 = await _factory.KioskAsync(1);
+        var state = await pc1.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Equal(1, state.Computer.Id);
+        Assert.Null(state.Session);
 
-        // Not for the kiosk: staff-only data.
-        Assert.False((await kiosk.GetAsync("/api/passes")).IsSuccessStatusCode);
-        Assert.False((await kiosk.GetAsync("/api/audit")).IsSuccessStatusCode);
+        // None of the staff data: other PCs, sessions, passes, the audit log.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await pc1.GetAsync("/api/computers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await pc1.GetAsync("/api/sessions/active")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await pc1.GetAsync("/api/passes")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await pc1.GetAsync("/api/audit")).StatusCode);
+    }
 
-        var wrongKey = _factory.Kiosk(key: "guess");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await wrongKey.GetAsync("/api/computers")).StatusCode);
+    [Fact]
+    public async Task A_kiosk_cannot_see_or_end_another_pcs_session()
+    {
+        var pc1 = await _factory.KioskAsync(1);
+        var pc2 = await _factory.KioskAsync(2);
+        await _factory.Heartbeat(2);
+        await pc2.PostJson<SessionDto>("/api/kiosk/sessions", new { userName = "Maria", purpose = "Printing" });
+
+        // PC-01 sees only itself, so Maria's name never reaches it...
+        var state = await pc1.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Null(state.Session);
+        Assert.Null(state.Computer.CurrentUser);
+
+        // ...and "end session" on PC-01 only ever means PC-01's session.
+        var end = await pc1.Post("/api/kiosk/session/end");
+        Assert.Equal(HttpStatusCode.Conflict, end.StatusCode);
+        Assert.NotNull((await pc2.PostJson<KioskStateDto>("/api/kiosk/heartbeat")).Session);
+    }
+
+    [Fact]
+    public async Task A_key_copied_from_one_pc_does_not_work_as_another_pc()
+    {
+        var code = await _factory.NewPairingCodeAsync(1);
+        var paired = await _factory.Anonymous().PostJson<KioskPairedDto>("/api/kiosk/pair", new { code });
+
+        var pretending = _factory.KioskWithKey(2, paired.KioskKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await pretending.Post("/api/kiosk/heartbeat")).StatusCode);
+
+        var guessing = _factory.KioskWithKey(1, "guess");
+        var response = await guessing.Post("/api/kiosk/heartbeat");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("not paired", await response.Message());
+    }
+
+    [Fact]
+    public async Task Pairing_codes_work_once_and_expire_after_15_minutes()
+    {
+        var code = await _factory.NewPairingCodeAsync(1);
+        Assert.Matches("^[A-Z2-9]{4}-[A-Z2-9]{4}$", code);
+
+        // Typed in lower case without the dash still works.
+        var first = await _factory.Anonymous().Post("/api/kiosk/pair", new { code = code.Replace("-", "").ToLower() });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var again = await _factory.Anonymous().Post("/api/kiosk/pair", new { code });
+        Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
+
+        var late = await _factory.NewPairingCodeAsync(2);
+        _factory.Clock.Advance(TimeSpan.FromMinutes(15));
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await _factory.Anonymous().Post("/api/kiosk/pair", new { code = late })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Pairing_again_or_unpairing_cancels_the_old_key()
+    {
+        var oldKiosk = await _factory.KioskAsync(1);
+        var code = await _factory.NewPairingCodeAsync(1);
+        var paired = await _factory.Anonymous().PostJson<KioskPairedDto>("/api/kiosk/pair", new { code });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await oldKiosk.Post("/api/kiosk/heartbeat")).StatusCode);
+
+        var newKiosk = _factory.KioskWithKey(1, paired.KioskKey);
+        Assert.Equal(HttpStatusCode.OK, (await newKiosk.Post("/api/kiosk/heartbeat")).StatusCode);
+
+        var admin = await _factory.SignedInAsync();
+        (await admin.Post("/api/computers/1/unpair")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await newKiosk.Post("/api/kiosk/heartbeat")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Only_admins_create_pairing_codes()
+    {
+        var staff = await _factory.SignedInAsync("maria", StaffRole.Staff);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.Post("/api/computers/1/pairing-code")).StatusCode);
+
+        var admin = await _factory.SignedInAsync("boss", StaffRole.Admin);
+        var code = await admin.PostJson<PairingCodeDto>("/api/computers/1/pairing-code");
+        Assert.Equal("PC-01", code.ComputerName);
     }
 
     [Fact]
@@ -196,12 +276,12 @@ public class AuthTests : IDisposable
     public async Task Audit_log_records_who_did_what()
     {
         var admin = await _factory.SignedInAsync();
-        var kiosk = _factory.Kiosk(computerId: 1);
-        await kiosk.Heartbeat(1);
+        var kiosk = await _factory.KioskAsync(1);
+        await _factory.Heartbeat(1);
 
         var pass = await _factory.Anonymous().PostJson<CreatedPassDto>("/api/passes", ApiExtensions.Visitor(1));
         var session = await admin.PostJson<SessionDto>("/api/passes/check-in", new { code = pass.Pass.Code });
-        await kiosk.PostJson<SessionDto>($"/api/sessions/{session.Id}/end", new { reason = "Idle" });
+        await kiosk.PostJson<SessionDto>("/api/kiosk/session/end", new { reason = "Idle" });
         await _factory.Anonymous().Post("/api/auth/login", new { username = "admin", password = "wrong" });
 
         var log = await admin.GetJson<List<AuditEntryDto>>("/api/audit");
@@ -213,10 +293,11 @@ public class AuthTests : IDisposable
 
         var end = log.Single(a => a.Action == "session.end");
         Assert.Equal(ActorType.Kiosk, end.ActorType);
-        Assert.Equal("Kiosk app (computer 1)", end.ActorName);
+        Assert.Equal("Kiosk PC-01", end.ActorName);
         Assert.Contains("Idle", end.Details);
 
         Assert.Single(log, a => a.Action == "auth.login_failed");
         Assert.Single(log, a => a.Action == "auth.login");
+        Assert.Single(log, a => a.Action == "kiosk.paired");
     }
 }

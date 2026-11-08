@@ -13,8 +13,7 @@ namespace KioskApp.Core;
 public enum KioskView
 {
     Loading,         // starting up, or the tracker cannot be reached yet
-    NeedsSetup,      // staff must choose which computer this is
-    MissingComputer, // the tracker does not know this computer id
+    NeedsSetup,      // staff must pair this PC (type a pairing code)
     Locked,          // available: show the login screen
     OutOfService,    // marked "Not working" by staff
     InUseElsewhere,  // in use, but not by a session we can see
@@ -31,7 +30,8 @@ public sealed record KioskState(
     string? FarewellName = null,
     string? FarewellText = null,
     bool Offline = false,
-    int? IdleSecondsLeft = null);
+    int? IdleSecondsLeft = null,
+    bool KeyRejected = false); // the tracker refused this PC's key: pair it again
 
 // The "brain" of the kiosk. It contains no WPF code, so the windows stay simple:
 // they show whatever KioskState says and call the methods below on button clicks.
@@ -45,7 +45,7 @@ public sealed class KioskController
 
     private ComputerDto? _computer;
     private SessionDto? _session;
-    private bool _missing;
+    private bool _keyRejected;
     private bool _offline;
     private string? _farewellName;
     private string? _farewellText;
@@ -121,7 +121,7 @@ public sealed class KioskController
     // Re-reads this computer and the active sessions from the tracker.
     public async Task RefreshAsync()
     {
-        if (_settings.ComputerId <= 0)
+        if (!_settings.IsPaired)
         {
             Publish();
             return;
@@ -130,19 +130,17 @@ public sealed class KioskController
         await _refreshGate.WaitAsync();
         try
         {
-            var id = _settings.ComputerId;
-            await _api.SendHeartbeatAsync(id); // "this PC is on": otherwise the tracker shows it Offline
-            var computer = await _api.GetComputerAsync(id);
-            var sessions = await _api.GetActiveSessionsAsync();
-
-            _computer = computer;
-            _session = sessions.FirstOrDefault(s => s.ComputerId == id);
-            _missing = false;
+            // One call: "this PC is on" (otherwise the tracker shows it Offline),
+            // answered with this PC's status and its session.
+            var state = await _api.HeartbeatAsync();
+            _computer = state.Computer;
+            _session = state.Session;
+            _keyRejected = false;
             _offline = false;
         }
-        catch (ApiException ex) when (ex.StatusCode == 404)
+        catch (ApiException ex) when (ex.StatusCode == 401)
         {
-            _missing = true;
+            _keyRejected = true; // unpaired by an admin, or paired again elsewhere
             _offline = false;
         }
         catch (Exception ex) when (IsApiFailure(ex))
@@ -172,7 +170,7 @@ public sealed class KioskController
         try
         {
             // This is the step that records the person in the tracker.
-            await _api.StartSessionAsync(_settings.ComputerId, userName, purpose);
+            await _api.StartSessionAsync(userName, purpose);
             _farewellName = null;
             await RefreshAsync();
             return null;
@@ -185,7 +183,7 @@ public sealed class KioskController
 
     // The user pressed "Log out".
     public Task<string?> LogOutAsync() =>
-        EndSessionAsync("You have been logged out. Have a great day.");
+        EndSessionAsync("Visitor", "You have been logged out. Have a great day.");
 
     // Sends a help request to staff. Returns null on success, or a message.
     public async Task<string?> RequestHelpAsync(string message)
@@ -198,7 +196,7 @@ public sealed class KioskController
 
         try
         {
-            await _api.CreateAssistAsync(_settings.ComputerId, message);
+            await _api.CreateAssistAsync(message);
             _lastHelpUtc = DateTime.UtcNow;
             return null;
         }
@@ -210,54 +208,58 @@ public sealed class KioskController
 
     // ---- Staff setup -------------------------------------------------------
 
-    public async Task<(List<ComputerDto> Computers, string? Error)> GetComputersForSetupAsync()
+    // The setup screen: trade the pairing code staff typed for this PC's key.
+    // Returns null on success, or a message to show.
+    public async Task<string?> PairAsync(string code)
     {
+        code = (code ?? "").Trim();
+        if (code.Length == 0) return "Type the pairing code from the dashboard.";
+
+        KioskPairedDto paired;
         try
         {
-            return (await _api.GetComputersAsync(), null);
+            paired = await _api.PairAsync(code);
         }
         catch (Exception ex) when (IsApiFailure(ex))
         {
-            return (new List<ComputerDto>(), Describe(ex));
+            return Describe(ex);
         }
-    }
 
-    // Returns null on success, or a warning if the choice could not be saved for next time.
-    public async Task<string?> ChooseComputerAsync(int computerId)
-    {
-        _settings.ComputerId = computerId;
-        _computer = null;
-        _session = null;
-        _missing = false;
-
-        string? warning = null;
         try
         {
-            _settings.SaveComputerId();
+            _settings.SavePairing(paired.ComputerId, paired.KioskKey);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            warning = "Could not save this choice for the next start: " + ex.Message;
+            // Paired for this run, but it will ask again after a restart.
+            _settings.ComputerId = paired.ComputerId;
+            _settings.KioskKey = paired.KioskKey;
+            await RefreshAsync();
+            return "Paired, but the key could not be saved for the next start: " + ex.Message;
         }
 
-        await RefreshAsync();
-        return warning;
-    }
-
-    // Forget which computer this is (goes back to the setup screen).
-    public void ChangeComputer()
-    {
-        _settings.ComputerId = 0;
         _computer = null;
         _session = null;
-        _missing = false;
+        _keyRejected = false;
+        await RefreshAsync();
+        return null;
+    }
+
+    // Staff menu: forget the pairing (the setup screen shows again).
+    public void Unpair()
+    {
+        _computer = null;
+        _session = null;
+        _keyRejected = false;
         try
         {
-            _settings.SaveComputerId();
+            _settings.ClearPairing();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Not fatal: the setup screen still shows for this run.
+            _settings.ComputerId = 0;
+            _settings.KioskKey = "";
         }
 
         Publish();
@@ -272,14 +274,14 @@ public sealed class KioskController
 
     // ---- Internals ---------------------------------------------------------
 
-    private async Task<string?> EndSessionAsync(string farewellText)
+    private async Task<string?> EndSessionAsync(string reason, string farewellText)
     {
         var session = _session;
         if (session is null) return null;
 
         try
         {
-            await _api.EndSessionAsync(session.Id);
+            await _api.EndSessionAsync(reason);
             ShowFarewell(session.UserName, farewellText);
             await RefreshAsync();
             return null;
@@ -317,7 +319,7 @@ public sealed class KioskController
 
         if (remaining <= TimeSpan.Zero)
         {
-            await EndSessionAsync("You were logged out because the computer was not being used.");
+            await EndSessionAsync("Idle", "You were logged out because the computer was not being used.");
             return;
         }
 
@@ -327,11 +329,8 @@ public sealed class KioskController
 
     private KioskState Compute()
     {
-        if (_settings.ComputerId <= 0)
-            return new KioskState(KioskView.NeedsSetup);
-
-        if (_missing)
-            return new KioskState(KioskView.MissingComputer, Offline: _offline);
+        if (!_settings.IsPaired || _keyRejected)
+            return new KioskState(KioskView.NeedsSetup, KeyRejected: _keyRejected);
 
         if (_computer is null)
             return new KioskState(KioskView.Loading, Offline: _offline);
@@ -374,7 +373,8 @@ public sealed class KioskController
         && a.Session?.Id == b.Session?.Id
         && a.FarewellName == b.FarewellName
         && a.FarewellText == b.FarewellText
-        && a.IdleSecondsLeft == b.IdleSecondsLeft;
+        && a.IdleSecondsLeft == b.IdleSecondsLeft
+        && a.KeyRejected == b.KeyRejected;
 
     private static bool IsApiFailure(Exception ex) =>
         ex is ApiException or HttpRequestException or TaskCanceledException or JsonException;

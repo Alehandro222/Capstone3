@@ -120,6 +120,21 @@ public record StaffDto(
     DateTime? LastLoginAt,
     DateTime? LockedUntil);
 
+// ---- Kiosk app ----
+
+// Shown once to an admin: staff type the code into the PC's setup screen.
+public record PairingCodeDto(int ComputerId, string ComputerName, string Code, DateTime ExpiresAt);
+
+// Returned once to the kiosk app when it pairs. It saves the key and sends it on every request.
+public record KioskPairedDto(int ComputerId, string ComputerName, string KioskKey);
+
+// What the kiosk app needs to draw its screens: its own PC, and its own session if any.
+public record KioskStateDto(ComputerDto Computer, SessionDto? Session);
+
+public record PairKioskRequest(string? Code);
+public record KioskStartSessionRequest(string UserName, string Purpose);
+public record KioskHelpRequest(string? Message);
+
 public record AuditEntryDto(
     long Id,
     DateTime At,
