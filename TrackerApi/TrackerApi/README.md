@@ -191,7 +191,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | Method | Route | Purpose |
 |---|---|---|
 | POST | `/api/kiosk/pair` | `{ code }` → this PC's id and key (no key needed; rate-limited) |
-| POST | `/api/kiosk/heartbeat` | "This PC is on" (every few seconds) → this PC and its session |
+| POST | `/api/kiosk/heartbeat` | "This PC is on" (every few seconds) → this PC, its session (with end time and whether it can be extended), and `reservedUntil` while a visitor's pass for it is waiting |
 | POST | `/api/kiosk/sessions` | Staff-only form on the PC: the registration form → registers the visit and starts the session here |
 | POST | `/api/kiosk/session/end` | Log out. Optional `{ "reason": "Idle" }`; without it the reason is `Visitor` |
 | POST | `/api/kiosk/session/extend` | Extend this PC's session |

@@ -171,7 +171,8 @@ public record PairingCodeDto(int ComputerId, string ComputerName, string Code, D
 public record KioskPairedDto(int ComputerId, string ComputerName, string KioskKey);
 
 // What the kiosk app needs to draw its screens: its own PC, and its own session if any.
-public record KioskStateDto(ComputerDto Computer, SessionDto? Session);
+// ReservedUntil: while a visitor holds an unscanned pass for this PC, when that pass expires.
+public record KioskStateDto(ComputerDto Computer, SessionDto? Session, DateTime? ReservedUntil = null);
 
 // ======================= Requests =======================
 

@@ -11,14 +11,29 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         Closing="Window_Closing">
 
-    <Border BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2" Padding="14">
+    <Border x:Name="Frame" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2" Padding="14">
         <StackPanel>
             <TextBlock Text="LOGGED IN" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource OkBrush}"/>
             <TextBlock x:Name="UserText" FontSize="18" FontWeight="Bold" TextWrapping="Wrap"/>
             <TextBlock x:Name="PurposeText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
 
             <TextBlock x:Name="TimerText" Text="0:00:00" FontFamily="Consolas" FontSize="30" FontWeight="Bold"
-                       HorizontalAlignment="Center" Margin="0,10"/>
+                       HorizontalAlignment="Center" Margin="0,10,0,0"/>
+            <TextBlock x:Name="TimerLabel" Text="time left" Foreground="{StaticResource MutedBrush}"
+                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
+
+            <!-- Time running out: save your work; Extend when the tracker allows it -->
+            <Border x:Name="TimeBanner" Visibility="Collapsed" Background="{StaticResource WarnBgBrush}"
+                    CornerRadius="8" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock x:Name="TimeText" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{StaticResource WarnBrush}"/>
+                    <Button x:Name="ExtendButton" Content="Extend by 1 hour" Visibility="Collapsed"
+                            Style="{StaticResource PrimaryButton}" MinHeight="38" FontSize="15" Padding="12,6" Margin="0,8,0,0"
+                            Click="ExtendButton_Click"/>
+                    <TextBlock x:Name="ExtendNote" Visibility="Collapsed" TextWrapping="Wrap" FontSize="13"
+                               Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
 
             <!-- Idle warning -->
             <Border x:Name="WarningBanner" Visibility="Collapsed" Background="{StaticResource WarnBgBrush}"

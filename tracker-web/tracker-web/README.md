@@ -44,6 +44,8 @@ From the Figma Make design ("LibPC Mobile Web App"):
 5. **Time left:** switches on by itself when staff check the visitor in. **Extend by 1 hour** appears in the last 10 minutes when allowed; **End session** asks first.
 6. **Waitlist** when no computer is free: the visitor's place in line, then "It's your turn" with a 5-minute countdown to pick the held PC.
 
+**Scanned at a PC:** each kiosk's lock screen shows a QR code for `#/visit?pc=<id>`. That PC is then already chosen on **Choose a computer** (if it is still free; otherwise the phone says so).
+
 The phone keeps its visit token (in the browser's local storage), so closing or reloading the page does not lose the visit. It checks the visit every 3 seconds. **Done** forgets it.
 
 ## Staff dashboard (`/`)

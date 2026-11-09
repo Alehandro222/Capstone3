@@ -34,8 +34,21 @@ public sealed class KioskSettings
     // false = a normal window (easy for testing). true = fullscreen, always on top, cannot be closed.
     public bool KioskMode { get; set; }
 
-    // PIN staff type (Ctrl+Shift+Q) to exit or change computer. In kiosk mode an empty PIN disables the shortcut.
-    public string StaffPin { get; set; } = "";
+    // Staff PIN as typed by whoever set up the PC. Only read once: on start it is replaced by
+    // StaffPinHash and removed from the file, so the PIN is never left in plain text.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StaffPin { get; set; }
+
+    // The staff PIN (Ctrl+Shift+Q), as a salted hash (see PinHasher). Empty = no PIN:
+    // the shortcut then works without one while testing, and is disabled in kiosk mode.
+    public string StaffPinHash { get; set; } = "";
+
+    // The visitor phone app's address, e.g. "http://192.168.1.10:5173/#/visit". When set, the
+    // lock screen shows a QR code that opens it with this PC already chosen. Empty = no QR.
+    public string VisitorUrl { get; set; } = "";
+
+    // The session box warns during the last N minutes (and offers Extend when the tracker allows it).
+    public int TimeWarningMinutes { get; set; } = 10;
 
     // Log the user out after this many seconds with no keyboard or mouse use. 0 = never.
     public int IdleTimeoutSeconds { get; set; } = 1200;
@@ -48,6 +61,41 @@ public sealed class KioskSettings
 
     [JsonIgnore]
     public string DataDirectory { get; set; } = DefaultDataDirectory();
+
+    // Where these settings were read from (and are saved to when the PIN changes).
+    [JsonIgnore]
+    public string SettingsPath { get; set; } = "";
+
+    // Set when the plain-text PIN could not be removed from the file (shown to staff).
+    [JsonIgnore]
+    public string? SaveWarning { get; set; }
+
+    [JsonIgnore]
+    public bool HasStaffPin => !string.IsNullOrEmpty(StaffPinHash);
+
+    // The address the lock screen's QR code opens: the phone app with this PC chosen.
+    public string? VisitorUrlFor(int computerId)
+    {
+        var url = VisitorUrl?.Trim();
+        if (string.IsNullOrEmpty(url) || computerId <= 0) return null;
+        return url + (url.Contains('?') ? "&" : "?") + "pc=" + computerId;
+    }
+
+    // Sets a new staff PIN (stored only as a hash) and saves the settings file.
+    public void SetStaffPin(string pin)
+    {
+        StaffPinHash = PinHasher.Hash(pin);
+        StaffPin = null;
+        Save();
+    }
+
+    // Writes the settings back to kiosk.settings.json. Throws if the file cannot be written.
+    public void Save()
+    {
+        if (string.IsNullOrEmpty(SettingsPath)) throw new InvalidOperationException("No settings file to save to.");
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true };
+        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, options));
+    }
 
     public static string DefaultDataDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "ComputerTracker");
@@ -73,6 +121,24 @@ public sealed class KioskSettings
         }
 
         settings.DataDirectory = dataDirectory;
+        settings.SettingsPath = path;
+
+        // A PIN typed into the file in plain text: keep only its hash, and take it out of the file.
+        if (!string.IsNullOrEmpty(settings.StaffPin))
+        {
+            settings.StaffPinHash = PinHasher.Hash(settings.StaffPin);
+            settings.StaffPin = null;
+            try
+            {
+                settings.Save();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Cannot write next to the .exe: the hash is used for this run; the file keeps the
+                // plain PIN until the app runs once with write access (README: Deploying).
+                settings.SaveWarning = "The staff PIN is still in plain text in kiosk.settings.json: " + ex.Message;
+            }
+        }
 
         // A computer id saved by the setup screen wins over the one in the settings file.
         // (0 is saved when staff choose "change computer", so setup shows again after a restart.)

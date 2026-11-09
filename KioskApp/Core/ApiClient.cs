@@ -32,8 +32,14 @@ public sealed class ApiClient : IDisposable
     // kioskKey and computerId are read on every request, because pairing changes them.
     // The API only accepts this PC's own key, and only for this PC.
     public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId)
+        : this(baseUrl, kioskKey, computerId, new HttpClientHandler())
     {
-        var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = new HttpClientHandler() };
+    }
+
+    // For the tests: "inner" stands in for the network.
+    public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId, HttpMessageHandler inner)
+    {
+        var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = inner };
         _http = new HttpClient(handler)
         {
             BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
@@ -56,6 +62,10 @@ public sealed class ApiClient : IDisposable
     // reason: "Visitor" (Log out button) or "Idle" (automatic log out).
     public Task<SessionDto> EndSessionAsync(string reason, CancellationToken ct = default) =>
         PostAsync<SessionDto>("api/kiosk/session/end", new { reason }, ct);
+
+    // Adds an hour, if the tracker's rules allow it (last 10 minutes, at most twice, nobody waiting).
+    public Task<SessionDto> ExtendSessionAsync(CancellationToken ct = default) =>
+        PostAsync<SessionDto>("api/kiosk/session/extend", new { }, ct);
 
     public Task<AssistDto> CreateAssistAsync(string message, CancellationToken ct = default) =>
         PostAsync<AssistDto>("api/kiosk/help", new { message }, ct);

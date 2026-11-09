@@ -12,6 +12,7 @@ show a QR pass at the help desk, and the session runs on the PC with a time limi
 | `TrackerApi/TrackerApi.Tests` | xUnit tests: whole API in memory, fake clock | `dotnet test` |
 | `tracker-web/tracker-web` | React + Vite: staff dashboard (`/`, tabs: help desk, computers, waitlist, problems, help requests, visitor log, admin), visitor phone app (`#/visit`), entrance poster (`#/poster`) | `npm run dev` (5173), `npm run dev:lan` for phones |
 | `KioskApp` | WPF app on each library PC: lock screen, session bar, staff menu | `dotnet run` |
+| `KioskApp.Tests` | xUnit tests for the kiosk's logic (`KioskApp/Core`), tracker faked | `dotnet test` |
 
 The READMEs in each folder are the reference for routes, settings and rules. Read them before changing a part.
 The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` elsewhere fails.
@@ -22,8 +23,8 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 2. ~~Staff sign-in (local accounts), roles, per-PC kiosk keys, rate limits, audit log~~ (done)
 3. ~~Visitor phone app + entrance QR poster~~ (done)
 4. ~~Staff dashboard rebuild: QR/code check-in, walk-ins, live board, end/extend, problem reports + per-PC history, waitlist, visitor log, staff accounts, audit log, pairing codes; old `PUT /api/computers/{id}/status` removed~~ (done)
-5. **Kiosk app polish** (next): Reserved screen, time-left warning, extend button, lock-screen QR; staff PIN is still plain text in `kiosk.settings.json`
-6. Reports (sessions per day/hour, by sector, by age group, hours per PC) + CSV/Excel export
+5. ~~Kiosk app polish: Reserved countdown, time-left warning, extend button, lock-screen QR (`#/visit?pc=<id>`), staff PIN hashed + lockout, "time is up" farewell, `KioskApp.Tests`~~ (done)
+6. **Reports** (next): (sessions per day/hour, by sector, by age group, hours per PC) + CSV/Excel export
 7. Gemini monthly-report assistant (partner wants Gemini, free tier): send **only aggregated counts**, never names or individual records (free-tier data may be used by Google)
 8. Deployment: HTTPS, Production settings (`RequireHeartbeat: true`, no Swagger), backups, data retention
 
@@ -43,13 +44,14 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 
 - **How long to keep visitor names** (data retention) – user will confirm with DTC.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-3 are on `master` (pushed to `Alehandro222/Capstone3`). Phase 4 is on branch `phase-4-dashboard`, not merged or pushed. Ask before merging or pushing.
+- Phases 1-3 are on `master` (pushed to `Alehandro222/Capstone3`). Phase 4 is on branch `phase-4-dashboard`; phase 5 on `phase-5-kiosk` (branched from phase 4). Neither is merged or pushed. Ask before merging or pushing.
 
 ## Working notes
 
 - Errors from the API are always `{ "message": "..." }`; services throw `TrackerException`.
 - Enums are stored and sent as text. All times are UTC from the injected `TimeProvider` (tests use a fake clock).
 - New tables/columns: add an EF migration (`dotnet tool restore`, then `dotnet dotnet-ef migrations add Name` in the inner API folder).
+- Don't run the real kiosk .exe for testing on the dev PC: it writes its pairing to `C:\ProgramData\ComputerTracker`, which may hold the user's own pairing. Test `KioskApp/Core` through `KioskApp.Tests` (fake tracker, temp folders).
 - If a running API locks `bin/`, build elsewhere instead of killing it: `OutputPath=<temp>/ dotnet build` (also works for `dotnet test` and `dotnet dotnet-ef`). The user may have their own API running; don't stop processes you didn't start.
 - Local dev admin `devadmin`; its password is in `TrackerApi/TrackerApi/dev-credentials.local.txt` (git-ignored). Never put credentials in commits or chat.
 - `npm install` needs `--legacy-peer-deps` until `@vitejs/plugin-react` is upgraded to a version that supports Vite 8.

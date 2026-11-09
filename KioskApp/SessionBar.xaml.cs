@@ -63,6 +63,7 @@ public partial class SessionBar : Window
         UpdateTimer();
     }
 
+    // Every second: the time left, and in the last minutes a warning (and Extend, when allowed).
     private void UpdateTimer()
     {
         if (!Dispatcher.CheckAccess())
@@ -71,11 +72,55 @@ public partial class SessionBar : Window
             return;
         }
 
-        if (_state.Session is null) return;
+        var session = _state.Session;
+        if (session is null) return;
 
-        var elapsed = DateTime.UtcNow - _state.Session.StartedAtUtc;
-        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
-        TimerText.Text = $"{(int)elapsed.TotalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+        if (session.ScheduledEndAt == default)
+        {
+            // An older tracker without end times: show how long they have been on instead.
+            var elapsed = DateTime.UtcNow - session.StartedAtUtc;
+            if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+            TimerText.Text = SessionClock.Format(elapsed);
+            TimerLabel.Text = "logged in";
+            TimeBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var left = SessionClock.Remaining(session, DateTime.UtcNow);
+        var phase = SessionClock.Phase(left, _controller.Settings.TimeWarningMinutes);
+        TimerText.Text = SessionClock.Format(left);
+        TimerLabel.Text = session.ExtensionCount > 0 ? $"time left (extended {session.ExtensionCount}×)" : "time left";
+
+        var warn = phase != TimePhase.Normal;
+        var brush = (Brush)FindResource(phase == TimePhase.Final ? "DangerBrush" : warn ? "WarnBrush" : "PrimaryBrush");
+        Frame.BorderBrush = brush;
+        Frame.BorderThickness = new Thickness(warn ? 4 : 2);
+        TimerText.Foreground = warn ? brush : (Brush)FindResource("TextBrush");
+
+        if (!warn)
+        {
+            TimeBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        TimeText.Text = left <= TimeSpan.Zero
+            ? "Your time is up. This computer will lock in a moment."
+            : $"Your session ends in {SessionClock.Words(left)}. Please save your work and sign out of your accounts.";
+        ExtendButton.Visibility = session.CanExtend ? Visibility.Visible : Visibility.Collapsed;
+        ExtendNote.Text = session.CanExtend ? "" : session.CannotExtendReason ?? "";
+        ExtendNote.Visibility = string.IsNullOrEmpty(ExtendNote.Text) ? Visibility.Collapsed : Visibility.Visible;
+        TimeBanner.Visibility = Visibility.Visible;
+    }
+
+    private async void ExtendButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        SetBusy(true);
+        var error = await _controller.ExtendAsync();
+        SetBusy(false);
+
+        if (error is null) ShowNotice("Extended by 1 hour.", isError: false);
+        else ShowNotice(error, isError: true);
     }
 
     private async void HelpButton_Click(object sender, RoutedEventArgs e)
@@ -117,6 +162,7 @@ public partial class SessionBar : Window
         _busy = busy;
         HelpButton.IsEnabled = !busy;
         LogOutButton.IsEnabled = !busy;
+        ExtendButton.IsEnabled = !busy;
     }
 
     // Shows a message under the timer and hides it again after 8 seconds.

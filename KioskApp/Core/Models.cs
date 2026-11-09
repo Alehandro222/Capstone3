@@ -38,15 +38,25 @@ public sealed record SessionDto(
     string UserName,
     string Purpose,
     DateTime StartedAt,
-    DateTime? EndedAt)
+    DateTime? EndedAt,
+    DateTime ScheduledEndAt = default, // when the time limit ends it (moves when extended)
+    int ExtensionCount = 0,
+    bool CanExtend = false,           // the tracker's extension rules, worked out on every heartbeat
+    string? CannotExtendReason = null)
 {
     // The API stores UTC, but SQLite can hand the time back without a "Z",
-    // which makes .NET treat it as "unspecified". This always gives real UTC.
-    public DateTime StartedAtUtc => StartedAt.Kind switch
+    // which makes .NET treat it as "unspecified". These always give real UTC.
+    public DateTime StartedAtUtc => Utc.Of(StartedAt);
+    public DateTime ScheduledEndAtUtc => Utc.Of(ScheduledEndAt);
+}
+
+public static class Utc
+{
+    public static DateTime Of(DateTime time) => time.Kind switch
     {
-        DateTimeKind.Utc => StartedAt,
-        DateTimeKind.Local => StartedAt.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(StartedAt, DateTimeKind.Utc)
+        DateTimeKind.Utc => time,
+        DateTimeKind.Local => time.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(time, DateTimeKind.Utc)
     };
 }
 
@@ -61,7 +71,9 @@ public sealed record KioskRegistration(
     List<string> Services);
 
 // From POST api/kiosk/heartbeat: this PC, and its running session (if any).
-public sealed record KioskStateDto(ComputerDto Computer, SessionDto? Session);
+// From POST api/kiosk/heartbeat: this PC, its running session (if any), and while
+// Reserved, when the visitor's pass runs out.
+public sealed record KioskStateDto(ComputerDto Computer, SessionDto? Session, DateTime? ReservedUntil = null);
 
 // From POST api/kiosk/pair: which PC this is, and its secret key.
 public sealed record KioskPairedDto(int ComputerId, string ComputerName, string KioskKey);

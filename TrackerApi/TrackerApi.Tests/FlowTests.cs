@@ -471,6 +471,29 @@ public class FlowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Kiosk_sees_when_its_reservation_runs_out_and_can_extend_its_own_session()
+    {
+        var kiosk = await _factory.KioskAsync(1);
+        await _factory.Heartbeat(1);
+        var (_, code) = await _phone.RegisterAndPick(1);
+
+        var reserved = await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Equal(ComputerStatus.Reserved, reserved.Computer.Status);
+        Assert.Equal(_factory.Clock.GetUtcNow().UtcDateTime.AddMinutes(10), reserved.ReservedUntil);
+
+        var session = await _staff.PostJson<SessionDto>("/api/passes/check-in", new { code });
+        var running = await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Null(running.ReservedUntil);
+        Assert.False(running.Session!.CanExtend); // not in the last 10 minutes yet
+
+        Advance(TimeSpan.FromMinutes(175));
+        Assert.True((await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat")).Session!.CanExtend);
+        var extended = await kiosk.PostJson<SessionDto>("/api/kiosk/session/extend");
+        Assert.Equal(session.ScheduledEndAt.AddHours(1), extended.ScheduledEndAt);
+        Assert.Equal(1, extended.ExtensionCount);
+    }
+
+    [Fact]
     public async Task Times_read_back_from_the_database_are_marked_utc()
     {
         await _phone.Register();

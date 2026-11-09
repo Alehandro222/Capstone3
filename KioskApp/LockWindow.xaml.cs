@@ -6,7 +6,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using KioskApp.Core;
+using QRCoder;
 
 namespace KioskApp;
 
@@ -19,6 +21,7 @@ public partial class LockWindow : Window
     private bool _busy;
     private int _noticeId;
     private bool _staffMode;   // true while the staff PIN / menu panels are open
+    private string? _qrUrl;    // the address the QR image currently shows
 
     public LockWindow(KioskController controller)
     {
@@ -37,6 +40,7 @@ public partial class LockWindow : Window
         }
 
         _controller.StateChanged += Render;
+        _controller.Ticked += UpdateReservedCountdown;
         Render(_controller.State);
     }
 
@@ -63,6 +67,7 @@ public partial class LockWindow : Window
         {
             case KioskView.Locked:
                 LoginIntro.Text = $"{state.Computer?.Name} is free.";
+                ShowQr(state.Computer);
                 ShowPanel(LoginPanel);
                 if (enteringLogin) ResetLoginForm();
                 break;
@@ -85,7 +90,8 @@ public partial class LockWindow : Window
                 break;
 
             case KioskView.Reserved:
-                ShowMessage("Reserved", "This computer is reserved for a visitor. Please check in at the help desk.");
+                ShowPanel(ReservedPanel);
+                UpdateReservedCountdown();
                 break;
 
             case KioskView.InSession:
@@ -100,7 +106,8 @@ public partial class LockWindow : Window
 
     private void ShowPanel(UIElement panel)
     {
-        foreach (var p in new UIElement[] { MessagePanel, LoginPanel, RegisterPanel, SetupPanel, StaffPinPanel, StaffMenuPanel })
+        foreach (var p in new UIElement[]
+                 { MessagePanel, LoginPanel, ReservedPanel, RegisterPanel, SetupPanel, StaffPinPanel, StaffMenuPanel, ChangePinPanel })
         {
             p.Visibility = ReferenceEquals(p, panel) ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -112,6 +119,85 @@ public partial class LockWindow : Window
         MessageText.Text = text;
         MessageText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
         ShowPanel(MessagePanel);
+    }
+
+    // The lock screen's QR code: the phone app with this PC already chosen.
+    // Without visitorUrl in the settings, only the written steps show.
+    private void ShowQr(ComputerDto? computer)
+    {
+        var name = computer?.Name ?? "this computer";
+        var url = computer is null ? null : _controller.Settings.VisitorUrlFor(computer.Id);
+
+        if (url is null)
+        {
+            QrBox.Visibility = Visibility.Collapsed;
+            LoginSteps.Text =
+                "1. Scan the QR code at the entrance and fill in the registration form.\n" +
+                "2. Pick this computer on your phone.\n" +
+                "3. Show your QR pass at the help desk. This computer unlocks when staff scan it.";
+            return;
+        }
+
+        if (url != _qrUrl)
+        {
+            try
+            {
+                QrImage.Source = MakeQr(url);
+                _qrUrl = url;
+            }
+            catch (Exception)
+            {
+                QrBox.Visibility = Visibility.Collapsed; // the written steps still work
+                return;
+            }
+        }
+
+        QrCaption.Text = $"Scan to use {name}";
+        QrBox.Visibility = Visibility.Visible;
+        LoginSteps.Text =
+            "1. Scan this QR code with your phone camera and fill in the registration form.\n" +
+            $"2. {name} is already chosen: tap Choose {name}.\n" +
+            "3. Show your QR pass at the help desk. This computer unlocks when staff scan it.";
+    }
+
+    private static BitmapImage MakeQr(string text)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(text, QRCodeGenerator.ECCLevel.M);
+        var png = new PngByteQRCode(data).GetGraphic(10);
+
+        var image = new BitmapImage();
+        using var stream = new System.IO.MemoryStream(png);
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    // Reserved screen: time left for the visitor to get their pass scanned (updated every second).
+    private void UpdateReservedCountdown()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(UpdateReservedCountdown);
+            return;
+        }
+
+        var until = _controller.State.ReservedUntil;
+        if (_controller.State.View != KioskView.Reserved || until is null)
+        {
+            ReservedCountdown.Visibility = Visibility.Collapsed;
+            ReservedCountdownLabel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var left = until.Value - DateTime.UtcNow;
+        if (left < TimeSpan.Zero) left = TimeSpan.Zero;
+        ReservedCountdown.Text = SessionClock.Format(left);
+        ReservedCountdown.Visibility = Visibility.Visible;
+        ReservedCountdownLabel.Visibility = Visibility.Visible;
     }
 
     private void ResetLoginForm()
@@ -254,16 +340,56 @@ public partial class LockWindow : Window
 
     private void CheckPin()
     {
-        if (_controller.VerifyStaffPin(PinBox.Password))
+        var error = _controller.CheckStaffPin(PinBox.Password);
+        PinBox.Clear();
+        if (error is null) OpenStaffMenu();
+        else PinError.Text = error;
+    }
+
+    private void OpenStaffMenu(string? notice = null)
+    {
+        var warning = _controller.Settings.SaveWarning;
+        StaffMenuError.Foreground = (System.Windows.Media.Brush)FindResource(notice is null ? "DangerBrush" : "OkBrush");
+        StaffMenuError.Text = notice ?? warning ?? (_controller.Settings.HasStaffPin ? "" : "No staff PIN is set yet. Set one with Change the staff PIN.");
+        ShowPanel(StaffMenuPanel);
+    }
+
+    // ---- Staff: change the PIN ---------------------------------------------
+
+    private void ChangePin_Click(object sender, RoutedEventArgs e)
+    {
+        NewPinBox.Clear();
+        NewPinAgainBox.Clear();
+        ChangePinError.Text = "";
+        ShowPanel(ChangePinPanel);
+        NewPinBox.Focus();
+    }
+
+    private void NewPinAgainBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) SavePin();
+    }
+
+    private void SavePin_Click(object sender, RoutedEventArgs e) => SavePin();
+
+    private void SavePin()
+    {
+        var error = _controller.ChangeStaffPin(NewPinBox.Password, NewPinAgainBox.Password);
+        NewPinBox.Clear();
+        NewPinAgainBox.Clear();
+        if (error is null)
         {
-            ShowPanel(StaffMenuPanel);
+            _controller.Settings.SaveWarning = null; // the file no longer holds a plain PIN
+            OpenStaffMenu("Staff PIN changed.");
         }
         else
         {
-            PinError.Text = "Incorrect PIN.";
-            PinBox.Clear();
+            ChangePinError.Text = error;
+            NewPinBox.Focus();
         }
     }
+
+    private void BackToStaffMenu_Click(object sender, RoutedEventArgs e) => OpenStaffMenu();
 
     private void StaffCancel_Click(object sender, RoutedEventArgs e) => LeaveStaffMode();
 

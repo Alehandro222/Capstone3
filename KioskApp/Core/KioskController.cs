@@ -30,7 +30,8 @@ public sealed record KioskState(
     string? FarewellText = null,
     bool Offline = false,
     int? IdleSecondsLeft = null,
-    bool KeyRejected = false); // the tracker refused this PC's key: pair it again
+    bool KeyRejected = false,        // the tracker refused this PC's key: pair it again
+    DateTime? ReservedUntil = null); // while Reserved: when the visitor's pass runs out
 
 // The "brain" of the kiosk. It contains no WPF code, so the windows stay simple:
 // they show whatever KioskState says and call the methods below on button clicks.
@@ -52,6 +53,15 @@ public sealed class KioskController
     private int? _idleSecondsLeft;
     private DateTime _lastRefreshUtc = DateTime.MinValue;
     private DateTime _lastHelpUtc = DateTime.MinValue;
+    private DateTime? _reservedUntil;
+    private bool _endingHere; // this kiosk is ending the session itself (it shows its own farewell)
+    private int _pinFailures;
+    private DateTime _pinLockedUntilUtc = DateTime.MinValue;
+
+    // Wrong staff PINs in a row before the PIN screen is locked for a while.
+    public const int MaxPinFailures = 5;
+    public static readonly TimeSpan PinLockout = TimeSpan.FromMinutes(1);
+    public const int MinPinLength = 4;
 
     public KioskController(KioskSettings settings, ApiClient api, IIdleSource idle, TimeSpan? tick = null)
     {
@@ -132,8 +142,22 @@ public sealed class KioskController
             // One call: "this PC is on" (otherwise the tracker shows it Offline),
             // answered with this PC's status and its session.
             var state = await _api.HeartbeatAsync();
+            var previous = _session;
             _computer = state.Computer;
             _session = state.Session;
+            _reservedUntil = state.ReservedUntil is DateTime until ? Utc.Of(until) : null;
+
+            // The session ended somewhere else: the time limit, staff on the dashboard, or the
+            // visitor's phone. Say goodbye instead of silently locking the screen.
+            if (previous is not null && _session?.Id != previous.Id && !_endingHere)
+            {
+                var timeUp = previous.ScheduledEndAt != default
+                             && DateTime.UtcNow >= previous.ScheduledEndAtUtc - TimeSpan.FromSeconds(30);
+                ShowFarewell(previous.UserName, timeUp
+                    ? "Your time is up. See you next time!"
+                    : "Your session was ended. See you next time!");
+                _session = state.Session;
+            }
             _keyRejected = false;
             _offline = false;
         }
@@ -168,6 +192,23 @@ public sealed class KioskController
         }
         catch (Exception ex) when (IsApiFailure(ex))
         {
+            return Describe(ex);
+        }
+    }
+
+    // The user pressed "Extend". Returns null on success, or a message to show.
+    public async Task<string?> ExtendAsync()
+    {
+        if (_session is null) return null;
+        try
+        {
+            await _api.ExtendSessionAsync();
+            await RefreshAsync();
+            return null;
+        }
+        catch (Exception ex) when (IsApiFailure(ex))
+        {
+            await RefreshAsync();
             return Describe(ex);
         }
     }
@@ -256,11 +297,45 @@ public sealed class KioskController
         Publish();
     }
 
-    public bool VerifyStaffPin(string pin)
+    // Checks the staff PIN. Returns null when it is right, or a message to show.
+    // After 5 wrong PINs in a row the PIN screen is locked for a minute.
+    public string? CheckStaffPin(string pin)
     {
+        if (DateTime.UtcNow < _pinLockedUntilUtc)
+            return $"Too many wrong PINs. Try again in {Math.Ceiling((_pinLockedUntilUtc - DateTime.UtcNow).TotalSeconds)} seconds.";
+
         // No PIN set: only allowed while testing (not in kiosk mode).
-        if (string.IsNullOrEmpty(_settings.StaffPin)) return !_settings.KioskMode;
-        return pin == _settings.StaffPin;
+        var ok = _settings.HasStaffPin ? PinHasher.Verify(pin ?? "", _settings.StaffPinHash) : !_settings.KioskMode;
+        if (ok)
+        {
+            _pinFailures = 0;
+            return null;
+        }
+
+        if (++_pinFailures >= MaxPinFailures)
+        {
+            _pinFailures = 0;
+            _pinLockedUntilUtc = DateTime.UtcNow + PinLockout;
+            return "Too many wrong PINs. The PIN screen is locked for 1 minute.";
+        }
+        return _settings.HasStaffPin ? "Incorrect PIN." : "No staff PIN is set. Set staffPin in kiosk.settings.json.";
+    }
+
+    // Staff menu: set a new staff PIN (saved as a hash). Returns null on success, or a message.
+    public string? ChangeStaffPin(string pin, string again)
+    {
+        pin = (pin ?? "").Trim();
+        if (pin.Length < MinPinLength) return $"The PIN needs at least {MinPinLength} characters.";
+        if (pin != (again ?? "").Trim()) return "The two PINs do not match.";
+        try
+        {
+            _settings.SetStaffPin(pin);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return "The new PIN could not be saved: " + ex.Message;
+        }
     }
 
     // ---- Internals ---------------------------------------------------------
@@ -270,6 +345,7 @@ public sealed class KioskController
         var session = _session;
         if (session is null) return null;
 
+        _endingHere = true;
         try
         {
             await _api.EndSessionAsync(reason);
@@ -286,6 +362,10 @@ public sealed class KioskController
         catch (Exception ex) when (IsApiFailure(ex))
         {
             return Describe(ex);
+        }
+        finally
+        {
+            _endingHere = false;
         }
     }
 
@@ -337,7 +417,7 @@ public sealed class KioskController
             ComputerStatus.Maintenance =>
                 new KioskState(KioskView.OutOfService, _computer, Offline: _offline),
             ComputerStatus.Reserved =>
-                new KioskState(KioskView.Reserved, _computer, Offline: _offline),
+                new KioskState(KioskView.Reserved, _computer, Offline: _offline, ReservedUntil: _reservedUntil),
             ComputerStatus.InUse when _session is not null =>
                 new KioskState(KioskView.InSession, _computer, _session, Offline: _offline, IdleSecondsLeft: _idleSecondsLeft),
             ComputerStatus.InUse => // the session was just created; it arrives on the next refresh
@@ -362,6 +442,11 @@ public sealed class KioskController
         && a.Computer?.Name == b.Computer?.Name
         && a.Computer?.Status == b.Computer?.Status
         && a.Session?.Id == b.Session?.Id
+        && a.Session?.ScheduledEndAt == b.Session?.ScheduledEndAt
+        && a.Session?.ExtensionCount == b.Session?.ExtensionCount
+        && a.Session?.CanExtend == b.Session?.CanExtend
+        && a.Session?.CannotExtendReason == b.Session?.CannotExtendReason
+        && a.ReservedUntil == b.ReservedUntil
         && a.FarewellName == b.FarewellName
         && a.FarewellText == b.FarewellText
         && a.IdleSecondsLeft == b.IdleSecondsLeft
