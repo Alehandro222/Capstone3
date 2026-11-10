@@ -44,7 +44,7 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 
 - **How long to keep visitor names** (data retention) – user will confirm with DTC.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-3 are on `master`. Phase 4 is on branch `phase-4-dashboard`; phase 5 (and later fixes to the dashboard) on `phase-5-kiosk`, branched from phase 4; phase 6 on `phase-6-reports`, branched from phase 5. Phases 4-5 are pushed to `Alehandro222/Capstone3`; none is merged. Ask before merging into `master` or pushing a new branch.
+- Phases 1-3 are on `master`. Phase 4 is on branch `phase-4-dashboard`; phase 5 (and later fixes to the dashboard) on `phase-5-kiosk`, branched from phase 4; phase 6 on `phase-6-reports`, branched from phase 5. Phases 4-6 are pushed to `Alehandro222/Capstone3`; none is merged. Ask before merging into `master` or pushing a new branch.
 
 ## Working notes
 
