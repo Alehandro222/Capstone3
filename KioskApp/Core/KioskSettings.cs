@@ -126,6 +126,8 @@ public sealed class KioskSettings
         // A PIN typed into the file in plain text: keep only its hash, and take it out of the file.
         if (!string.IsNullOrEmpty(settings.StaffPin))
         {
+            if (settings.StaffPin.Length < PinHasher.MinLength)
+                settings.SaveWarning = $"The staff PIN is shorter than {PinHasher.MinLength} characters. Please change it.";
             settings.StaffPinHash = PinHasher.Hash(settings.StaffPin);
             settings.StaffPin = null;
             try
@@ -136,7 +138,8 @@ public sealed class KioskSettings
             {
                 // Cannot write next to the .exe: the hash is used for this run; the file keeps the
                 // plain PIN until the app runs once with write access (README: Deploying).
-                settings.SaveWarning = "The staff PIN is still in plain text in kiosk.settings.json: " + ex.Message;
+                settings.SaveWarning = "The staff PIN is still in plain text in kiosk.settings.json: " + ex.Message
+                                       + (settings.SaveWarning is null ? "" : " " + settings.SaveWarning);
             }
         }
 

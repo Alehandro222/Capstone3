@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import QrScanner from './QrScanner.jsx'
 import {
@@ -7,6 +7,7 @@ import {
   ageLabel,
   ago,
   countdown,
+  heldForWaitlist,
   msUntil,
   sectorsLabel,
   servicesLabel,
@@ -17,6 +18,47 @@ import {
 // The QR holds the visit's token; the 6-digit code is the backup for when it won't scan.
 // A USB/Bluetooth barcode scanner "types" the token and presses Enter, so the same box works.
 const asPass = (text) => (/^\d{6}$/.test(text) ? { code: text } : { token: text })
+
+// A QR scanner at the desk works like a keyboard: it "types" what it read, very fast, then
+// presses Enter. When the code box has focus that just works. This catches a scan that
+// arrives while focus is somewhere else on the page (a button, the page itself) and
+// sends it to the code box. Slow typing outside a text field is ignored.
+const SCAN_GAP_MS = 60 // keys from a scanner come a few milliseconds apart
+
+function useScannerAnywhere(onScan) {
+  const onScanRef = useRef(onScan)
+  onScanRef.current = onScan
+
+  useEffect(() => {
+    let buffer = ''
+    let last = 0
+
+    function onKeyDown(e) {
+      const t = e.target
+      const inField = t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+      if (inField || e.ctrlKey || e.altKey || e.metaKey || document.querySelector('.overlay')) {
+        buffer = ''
+        return
+      }
+      const now = performance.now()
+      if (now - last > SCAN_GAP_MS) buffer = '' // too slow for a scanner: start over
+      last = now
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= 6) {
+          e.preventDefault()
+          onScanRef.current(buffer)
+        }
+        buffer = ''
+      } else if (e.key.length === 1) {
+        buffer += e.key
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+}
 
 // Help desk: check visitors in, register visitors without a phone, see who is waiting.
 //   computers, waitlist, pendingPasses   live data from the dashboard
@@ -46,6 +88,7 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
     try {
       const query = asPass(value)
       setFound({ pass: await api.lookupPass(query), query })
+      if (query.token) setText('') // the QR's secret token should not stay on screen
     } catch (e) {
       setError(e.message)
       inputRef.current?.select() // the next scan or code replaces it
@@ -65,6 +108,13 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
     if (ok) clear()
   }
 
+  // A scan that arrived while the code box did not have focus.
+  useScannerAnywhere((value) => {
+    setText(value)
+    inputRef.current?.focus()
+    lookUp(value)
+  })
+
   function clear() {
     setFound(null)
     setText('')
@@ -73,6 +123,7 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
   }
 
   const free = computers.filter((c) => c.status === 'Available').length
+  const held = heldForWaitlist(waitlist, now).length
   const pass = found?.pass
 
   return (
@@ -80,7 +131,7 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
       <section className="panel desk-checkin">
         <h2>Check in a visitor</h2>
         <p className="muted small">
-          Scan the QR pass on the visitor's phone, or type the 6-digit code under it.
+          Scan the QR pass on the visitor's phone with the desk scanner, or type the 6-digit code under it.
         </p>
         <form
           className="checkin-form"
@@ -165,24 +216,14 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
         {pending.length > 0 && (
           <div className="pending">
             <h3>Reserved, waiting to be scanned</h3>
+            {/* No codes or check-in buttons here: the visitor shows their own pass. */}
             <ul className="rows">
               {pending.map((p) => (
                 <li key={p.id} className="row">
                   <span>
                     <strong>{p.computerName}</strong> · {p.visit.firstName} {p.visit.lastName}
                   </span>
-                  <span className="muted small">
-                    code {p.code} · {countdown(msUntil(p.expiresAt, now))} left
-                  </span>
-                  <button
-                    className="btn btn-small"
-                    onClick={() => {
-                      setText(p.code)
-                      lookUp(p.code)
-                    }}
-                  >
-                    Open
-                  </button>
+                  <span className="muted small">{countdown(msUntil(p.expiresAt, now))} left to check in</span>
                 </li>
               ))}
             </ul>
@@ -202,7 +243,11 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
               Log a visit (no PC)
             </button>
           </div>
-          <p className="muted small">{free === 0 ? 'No PC is free right now.' : `${free} PC${free === 1 ? '' : 's'} free.`}</p>
+          <p className="muted small">
+            {free === 0 ? 'No PC is free right now.' : `${free} PC${free === 1 ? '' : 's'} free`}
+            {free > 0 && held > 0 && `, ${Math.min(held, free)} held for the waitlist`}
+            {free > 0 && '.'}
+          </p>
         </section>
 
         <section className="panel">

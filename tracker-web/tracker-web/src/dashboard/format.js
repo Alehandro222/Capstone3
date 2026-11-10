@@ -1,7 +1,7 @@
 // Labels and time formatting shared by the dashboard screens.
 import { useEffect, useState } from 'react'
 import { AGE_GROUPS, SECTORS, SERVICES, SEXES } from '../registration.js'
-import { parseUtc } from '../time.js'
+import { formatDateTime, formatTime, manilaMidnightIso, parseUtc, serverNow, todayInManila } from '../time.js'
 
 const lookup = (options) => Object.fromEntries(options.map((o) => [o.value, o.label]))
 const AGE = lookup(AGE_GROUPS)
@@ -48,11 +48,21 @@ export const PASS_STATUS_LABEL = {
   Cancelled: 'Cancelled',
 }
 
+// The waitlist holds free PCs by number, not particular PCs: with 2 offers open, any 2 of the
+// free PCs are kept for those people. Returns the open offers (who, and until when).
+export function heldForWaitlist(waitlist, now = serverNow()) {
+  return waitlist.filter((w) => w.computerReadyUntil && msUntil(w.computerReadyUntil, now) > 0)
+}
+
+// "Dina (4:12 left), Eli (2:03 left)"
+export const heldNames = (held, now = serverNow()) =>
+  held.map((w) => `${w.firstName} (${countdown(msUntil(w.computerReadyUntil, now))} left)`).join(', ')
+
 // The current time, updated every `ms` milliseconds (for countdowns).
 export function useNow(ms = 1000) {
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(serverNow)
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), ms)
+    const timer = setInterval(() => setNow(serverNow()), ms)
     return () => clearInterval(timer)
   }, [ms])
   return now
@@ -75,9 +85,9 @@ export function minutesText(minutes) {
   return `${Math.floor(m / 60)} h ${m % 60} min`
 }
 
-export const msUntil = (iso, now = Date.now()) => parseUtc(iso).getTime() - now
+export const msUntil = (iso, now = serverNow()) => parseUtc(iso).getTime() - now
 
-export function ago(iso, now = Date.now()) {
+export function ago(iso, now = serverNow()) {
   const minutes = Math.max(0, Math.floor((now - parseUtc(iso).getTime()) / 60000))
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes} min ago`
@@ -86,22 +96,12 @@ export function ago(iso, now = Date.now()) {
   return `${Math.floor(hours / 24)} d ago`
 }
 
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
-const dateTimeFmt = new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-})
-export const clock = (iso) => (iso ? timeFmt.format(parseUtc(iso)) : '')
-export const dateTime = (iso) => (iso ? dateTimeFmt.format(parseUtc(iso)) : '')
+// Times and days are shown in Philippine time (see time.js).
+export const clock = formatTime
+export const dateTime = formatDateTime
 
-// "2026-11-08" (local) for <input type="date">
-export function localDateInput(date = new Date()) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
+// Today in the Philippines, "2026-11-10", for <input type="date">.
+export const localDateInput = () => todayInManila()
 
-// Local midnight of an <input type="date"> value, as an ISO string the API understands.
-export function startOfDayIso(dateInput, addDays = 0) {
-  if (!dateInput) return ''
-  const [y, m, d] = dateInput.split('-').map(Number)
-  return new Date(y, m - 1, d + addDays).toISOString()
-}
+// Midnight (Philippine time) at the start of a day from <input type="date">, for the API.
+export const startOfDayIso = (dateInput, addDays = 0) => manilaMidnightIso(dateInput, addDays)

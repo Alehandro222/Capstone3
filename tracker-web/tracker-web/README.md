@@ -54,7 +54,7 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 
 | Tab | What staff do there |
 |---|---|
-| **Help desk** | **Check visitors in**: scan the QR pass with the camera (**Scan QR with camera**), or type the 6-digit code (a USB barcode scanner also works: it types into the same box). The visitor's details (name, age group, sex, sectors, purpose, PC, pass status) show first; **Check in and start session** starts the 3-hour session. Also lists PCs reserved and waiting to be scanned, **Register and give a PC** / **Log a visit (no PC)** for visitors without a phone, and the waitlist. |
+| **Help desk** | **Check visitors in**: scan the QR pass with the desk's QR scanner, or type the 6-digit code. (**Scan QR with camera** also works on `localhost` / HTTPS.) The visitor's details (name, age group, sex, sectors, purpose, PC, pass status) show first; **Check in and start session** starts the 3-hour session. Also lists PCs reserved and waiting to be scanned (names and time left only: the visitor must show their own pass), **Register and give a PC** / **Log a visit (no PC)** for visitors without a phone, and the waitlist. |
 | **Computers** | Live board: every PC with its status (Available, Reserved, In use, Maintenance, Offline), who is on it, a countdown to the end of the session (red in the last 10 minutes), **Extend 1 h** (when the rules allow it; hover for why not), **End session** (asks first), **Register visitor** on a free PC, peripherals. **Details** shows the PC's problem reports, its session history and (admins) kiosk pairing. Admins can **Add a PC**. |
 | **Waitlist** | Everyone waiting, in order; when a PC is held for the first person, the time they have left to pick it. |
 | **Problems** | Open problem reports (**Report a problem**, **Resolve** with optional notes) and recently resolved ones. A PC with an open report shows as Maintenance. |
@@ -64,6 +64,12 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 | **Audit log** (admin) | Who did what and when, filtered by person, kind of action and dates. |
 
 **Pairing a PC's kiosk app** (admin): Computers → **Details** → **Create pairing code**, then type the code into the kiosk app's "Set up this computer" screen. **Unpair** stops the PC's key at once.
+
+**Desk QR scanner:** a scanner in keyboard mode (USB or Bluetooth "HID") works out of the box: it types what it read and presses Enter. On the Help desk tab a scan is caught even when the code box does not have focus (a fast burst of keys ending in Enter); it is ignored while a dialog is open or another text field has focus. Set the scanner to send **Enter** after each scan and to the same keyboard layout as the PC (US). A scanner that sends results over the network instead of as a keyboard would need its own integration.
+
+**Philippine time:** every time and every "day" (visitor log, audit log) is shown in Philippine time (`Asia/Manila`), whatever the device is set to. Countdowns use the server's clock (from each answer's `Date` header), so a phone or PC with a wrong clock still shows the right time left.
+
+**Free PCs held for the waitlist:** the waitlist holds free PCs by number, not particular PCs. When every free PC is held, the board says so, free cards read "Held for the waitlist", and the walk-in form warns that giving one away takes a turn (the last person offered goes back to waiting).
 
 **Camera:** browsers only allow the camera on `https://` or on `localhost`. On the help-desk PC, open the dashboard as `http://localhost:5173`; on another address, type the code instead (or use a USB scanner) until the site runs on HTTPS (phase 8).
 

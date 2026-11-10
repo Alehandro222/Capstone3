@@ -14,6 +14,10 @@ public static class PinHasher
     private const int SaltBytes = 16;
     private const int HashBytes = 32;
 
+    // A 4-digit PIN has only 10,000 values: anyone who can read the settings file could try
+    // them all against the hash in minutes. 6+ characters (and a file visitors can't read) helps.
+    public const int MinLength = 6;
+
     public static string Hash(string pin)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);

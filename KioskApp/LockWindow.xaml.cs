@@ -193,7 +193,7 @@ public partial class LockWindow : Window
             return;
         }
 
-        var left = until.Value - DateTime.UtcNow;
+        var left = until.Value - _controller.NowUtc;
         if (left < TimeSpan.Zero) left = TimeSpan.Zero;
         ReservedCountdown.Text = SessionClock.Format(left);
         ReservedCountdown.Visibility = Visibility.Visible;

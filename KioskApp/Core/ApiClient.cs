@@ -29,6 +29,11 @@ public sealed class ApiClient : IDisposable
 
     private readonly HttpClient _http;
 
+    // How far this PC's clock is from the tracker's (from each answer's Date header).
+    // Countdowns use tracker time, so a PC whose clock is off still shows the right time left.
+    // Differences under 3 seconds are ignored (the header only has whole seconds).
+    public TimeSpan ServerClockOffset { get; private set; }
+
     // kioskKey and computerId are read on every request, because pairing changes them.
     // The API only accepts this PC's own key, and only for this PC.
     public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId)
@@ -75,6 +80,11 @@ public sealed class ApiClient : IDisposable
     private async Task<T> PostAsync<T>(string path, object body, CancellationToken ct)
     {
         using var response = await _http.PostAsJsonAsync(path, body, JsonOptions, ct);
+        if (response.Headers.Date is DateTimeOffset serverTime)
+        {
+            var offset = serverTime.UtcDateTime.AddMilliseconds(500) - DateTime.UtcNow;
+            ServerClockOffset = offset.Duration() < TimeSpan.FromSeconds(3) ? TimeSpan.Zero : offset;
+        }
         await EnsureSuccessAsync(response, ct);
         return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
     }

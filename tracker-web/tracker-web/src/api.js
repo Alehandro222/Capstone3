@@ -1,3 +1,5 @@
+import { noteServerDate } from './time.js'
+
 // All calls to the C# API live here, so components never build URLs themselves.
 // Empty = same address as the page (the Vite dev server forwards /api to the API).
 const BASE = import.meta.env.VITE_API_URL || ''
@@ -7,6 +9,7 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
+  noteServerDate(res.headers.get('Date')) // keeps countdowns on the server's clock
 
   if (!res.ok) {
     // The API returns { message: "..." } for validation errors.

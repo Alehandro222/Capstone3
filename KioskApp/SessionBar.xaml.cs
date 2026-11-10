@@ -78,7 +78,7 @@ public partial class SessionBar : Window
         if (session.ScheduledEndAt == default)
         {
             // An older tracker without end times: show how long they have been on instead.
-            var elapsed = DateTime.UtcNow - session.StartedAtUtc;
+            var elapsed = _controller.NowUtc - session.StartedAtUtc;
             if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
             TimerText.Text = SessionClock.Format(elapsed);
             TimerLabel.Text = "logged in";
@@ -86,7 +86,7 @@ public partial class SessionBar : Window
             return;
         }
 
-        var left = SessionClock.Remaining(session, DateTime.UtcNow);
+        var left = SessionClock.Remaining(session, _controller.NowUtc);
         var phase = SessionClock.Phase(left, _controller.Settings.TimeWarningMinutes);
         TimerText.Text = SessionClock.Format(left);
         TimerLabel.Text = session.ExtensionCount > 0 ? $"time left (extended {session.ExtensionCount}×)" : "time left";

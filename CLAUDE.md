@@ -44,12 +44,14 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 
 - **How long to keep visitor names** (data retention) – user will confirm with DTC.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-3 are on `master` (pushed to `Alehandro222/Capstone3`). Phase 4 is on branch `phase-4-dashboard`; phase 5 on `phase-5-kiosk` (branched from phase 4). Neither is merged or pushed. Ask before merging or pushing.
+- Phases 1-3 are on `master`. Phase 4 is on branch `phase-4-dashboard`; phase 5 (and later fixes to the dashboard) on `phase-5-kiosk`, branched from phase 4. Both are pushed to `Alehandro222/Capstone3`, not merged. Ask before merging into `master`.
 
 ## Working notes
 
 - Errors from the API are always `{ "message": "..." }`; services throw `TrackerException`.
-- Enums are stored and sent as text. All times are UTC from the injected `TimeProvider` (tests use a fake clock).
+- Enums are stored and sent as text. All times are UTC from the injected `TimeProvider` (tests use a fake clock). Pages show Philippine time (`Asia/Manila`, UTC+8, no DST; `tracker-web/src/time.js`); reports in phase 6 must group by Manila days too. Countdowns (web and kiosk) use the server's clock from the HTTP `Date` header.
+- Help desk uses a keyboard-mode (HID) QR scanner; one help-desk unit. Don't show pass codes or tokens on staff screens: the visitor shows their own pass.
+- Kiosk staff PIN: 6+ characters, hashed; deployment must restrict read access to `kiosk.settings.json` and `C:\ProgramData\ComputerTracker`.
 - New tables/columns: add an EF migration (`dotnet tool restore`, then `dotnet dotnet-ef migrations add Name` in the inner API folder).
 - Don't run the real kiosk .exe for testing on the dev PC: it writes its pairing to `C:\ProgramData\ComputerTracker`, which may hold the user's own pairing. Test `KioskApp/Core` through `KioskApp.Tests` (fake tracker, temp folders).
 - If a running API locks `bin/`, build elsewhere instead of killing it: `OutputPath=<temp>/ dotnet build` (also works for `dotnet test` and `dotnet dotnet-ef`). The user may have their own API running; don't stop processes you didn't start.

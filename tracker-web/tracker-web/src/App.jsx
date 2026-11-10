@@ -11,6 +11,7 @@ import StaffAccounts from './dashboard/StaffAccounts.jsx'
 import VisitorLog from './dashboard/VisitorLog.jsx'
 import Waitlist from './dashboard/Waitlist.jsx'
 import { ConfirmDialog, FormDialog } from './dashboard/ui.jsx'
+import { heldForWaitlist, heldNames } from './dashboard/format.js'
 import './dashboard/dashboard.css'
 import './help.css'
 
@@ -193,7 +194,7 @@ export default function App({ me, onSignOut }) {
               </button>
             </div>
           )}
-          <Board computers={computers} sessions={sessions} pendingPasses={passes} on={boardActions} />
+          <Board computers={computers} sessions={sessions} pendingPasses={passes} waitlist={waitlist} on={boardActions} />
         </>
       )}
       {loaded && tab === 'waitlist' && <Waitlist waitlist={waitlist} computers={computers} />}
@@ -220,6 +221,7 @@ export default function App({ me, onSignOut }) {
       {dialog?.type === 'walkin' && (
         <WalkInDialog
           computer={dialog.computer}
+          warning={heldWarning(computers, waitlist)}
           freeComputers={dialog.choose ? computers.filter((c) => c.status === 'Available') : undefined}
           onCancel={close}
           onSubmit={async (registration) => {
@@ -305,6 +307,15 @@ export default function App({ me, onSignOut }) {
       )}
     </div>
   )
+}
+
+// Shown in the walk-in form when every free PC is held for someone on the waitlist.
+function heldWarning(computers, waitlist) {
+  const free = computers.filter((c) => c.status === 'Available').length
+  const held = heldForWaitlist(waitlist)
+  if (held.length === 0 || held.length < free) return ''
+  return `Every free PC is held for the waitlist: ${heldNames(held)}. Giving one to this visitor takes the turn ` +
+    'of the last person offered one; they go back to waiting.'
 }
 
 function Stat({ label, value, tone }) {

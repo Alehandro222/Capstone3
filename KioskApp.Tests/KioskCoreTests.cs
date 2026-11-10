@@ -22,30 +22,30 @@ public class KioskCoreTests : IDisposable
     [Fact]
     public void Pin_is_stored_as_a_salted_hash()
     {
-        var a = PinHasher.Hash("4821");
-        var b = PinHasher.Hash("4821");
+        var a = PinHasher.Hash("482193");
+        var b = PinHasher.Hash("482193");
 
-        Assert.DoesNotContain("4821", a);
+        Assert.DoesNotContain("482193", a);
         Assert.NotEqual(a, b); // different salt each time
-        Assert.True(PinHasher.Verify("4821", a));
+        Assert.True(PinHasher.Verify("482193", a));
         Assert.False(PinHasher.Verify("4822", a));
-        Assert.False(PinHasher.Verify("4821", "4821"));   // a plain value is never accepted as a hash
-        Assert.False(PinHasher.Verify("4821", "pbkdf2-sha256$x$y$z"));
-        Assert.False(PinHasher.Verify("4821", ""));
+        Assert.False(PinHasher.Verify("482193", "482193"));   // a plain value is never accepted as a hash
+        Assert.False(PinHasher.Verify("482193", "pbkdf2-sha256$x$y$z"));
+        Assert.False(PinHasher.Verify("482193", ""));
     }
 
     [Fact]
     public void A_plain_pin_in_the_settings_file_is_replaced_by_its_hash()
     {
         File.WriteAllText(Path.Combine(_dir, "kiosk.settings.json"),
-            """{ "apiUrl": "http://server:5080/", "kioskMode": true, "staffPin": "4821", "refreshSeconds": 7 }""");
+            """{ "apiUrl": "http://server:5080/", "kioskMode": true, "staffPin": "482193", "refreshSeconds": 7 }""");
 
         var settings = KioskSettings.Load(_dir, Path.Combine(_dir, "data"));
 
         Assert.True(settings.HasStaffPin);
-        Assert.True(PinHasher.Verify("4821", settings.StaffPinHash));
+        Assert.True(PinHasher.Verify("482193", settings.StaffPinHash));
         var file = File.ReadAllText(Path.Combine(_dir, "kiosk.settings.json"));
-        Assert.DoesNotContain("4821", file);
+        Assert.DoesNotContain("482193", file);
         Assert.Contains("staffPinHash", file);
         Assert.Contains("http://server:5080/", file); // the other settings are kept
         Assert.Equal(7, KioskSettings.Load(_dir, Path.Combine(_dir, "data")).RefreshSeconds);
@@ -54,18 +54,42 @@ public class KioskCoreTests : IDisposable
     [Fact]
     public void Five_wrong_pins_lock_the_pin_screen_and_staff_can_change_the_pin()
     {
-        File.WriteAllText(Path.Combine(_dir, "kiosk.settings.json"), """{ "kioskMode": true, "staffPin": "4821" }""");
+        File.WriteAllText(Path.Combine(_dir, "kiosk.settings.json"), """{ "kioskMode": true, "staffPin": "482193" }""");
         var controller = NewController(KioskSettings.Load(_dir, Path.Combine(_dir, "data")), new FakeTracker());
 
-        Assert.Null(controller.CheckStaffPin("4821"));
+        Assert.Null(controller.CheckStaffPin("482193"));
         for (var i = 0; i < 4; i++) Assert.Equal("Incorrect PIN.", controller.CheckStaffPin("0000"));
         Assert.Contains("locked", controller.CheckStaffPin("0000"));
-        Assert.Contains("Too many", controller.CheckStaffPin("4821")); // even the right PIN, for a minute
+        Assert.Contains("Too many", controller.CheckStaffPin("482193")); // even the right PIN, for a minute
 
-        Assert.NotNull(controller.ChangeStaffPin("12", "12"));       // too short
-        Assert.NotNull(controller.ChangeStaffPin("1234", "1243"));   // typo
-        Assert.Null(controller.ChangeStaffPin("7391", "7391"));
-        Assert.True(PinHasher.Verify("7391", KioskSettings.Load(_dir, Path.Combine(_dir, "data")).StaffPinHash));
+        Assert.NotNull(controller.ChangeStaffPin("1234", "1234"));       // too short (6+)
+        Assert.NotNull(controller.ChangeStaffPin("739104", "739140"));   // typo
+        Assert.Null(controller.ChangeStaffPin("739104", "739104"));
+        Assert.True(PinHasher.Verify("739104", KioskSettings.Load(_dir, Path.Combine(_dir, "data")).StaffPinHash));
+    }
+
+    [Fact]
+    public void A_short_pin_in_the_file_still_works_but_staff_are_asked_to_change_it()
+    {
+        File.WriteAllText(Path.Combine(_dir, "kiosk.settings.json"), """{ "kioskMode": true, "staffPin": "4821" }""");
+        var settings = KioskSettings.Load(_dir, Path.Combine(_dir, "data"));
+        Assert.True(PinHasher.Verify("4821", settings.StaffPinHash));
+        Assert.Contains("shorter than 6", settings.SaveWarning);
+    }
+
+    [Fact]
+    public async Task Countdowns_use_the_trackers_clock_not_this_pcs()
+    {
+        var tracker = new FakeTracker { ServerTime = DateTimeOffset.UtcNow.AddMinutes(7) }; // this PC is 7 minutes slow
+        var controller = NewController(PairedSettings(), tracker);
+        await controller.RefreshAsync();
+
+        var gap = controller.NowUtc - DateTime.UtcNow;
+        Assert.InRange(gap.TotalMinutes, 6.9, 7.1);
+
+        tracker.ServerTime = DateTimeOffset.UtcNow.AddSeconds(1); // within rounding: ignored
+        await controller.RefreshAsync();
+        Assert.InRange((controller.NowUtc - DateTime.UtcNow).TotalSeconds, -0.5, 0.5);
     }
 
     [Fact]
@@ -217,6 +241,7 @@ public class KioskCoreTests : IDisposable
         public object Next { get; set; } = State("Available");
         public (HttpStatusCode Status, string Message)? Fail { get; set; }
         public List<string> Calls { get; } = new();
+        public DateTimeOffset? ServerTime { get; set; } // sent as the Date header
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -233,9 +258,14 @@ public class KioskCoreTests : IDisposable
             return Task.FromResult(Respond(HttpStatusCode.OK, body));
         }
 
-        private static HttpResponseMessage Respond(HttpStatusCode status, object body) => new(status)
+        private HttpResponseMessage Respond(HttpStatusCode status, object body)
         {
-            Content = new StringContent(JsonSerializer.Serialize(body, Json), Encoding.UTF8, "application/json")
-        };
+            var response = new HttpResponseMessage(status)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(body, Json), Encoding.UTF8, "application/json")
+            };
+            response.Headers.Date = ServerTime ?? DateTimeOffset.UtcNow;
+            return response;
+        }
     }
 }

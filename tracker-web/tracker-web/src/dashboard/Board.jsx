@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import PeripheralList from '../components/PeripheralList.jsx'
-import { STATUS_LABEL, STATUS_TONE, ago, clock, countdown, msUntil, useNow } from './format.js'
+import { STATUS_LABEL, STATUS_TONE, ago, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './format.js'
 import { Badge } from './ui.jsx'
 
 const WARN_MS = 10 * 60 * 1000 // the last 10 minutes: when visitors may extend
@@ -20,10 +20,13 @@ const matches = (filter, status) =>
 
 // Live board: every PC, who is on it, and how long they have left.
 //   on.* are the card actions, each given the computer (and its session).
-export default function Board({ computers, sessions, pendingPasses, on }) {
+export default function Board({ computers, sessions, pendingPasses, waitlist, on }) {
   const now = useNow()
   const [filter, setFilter] = useState('all')
   const shown = computers.filter((c) => matches(filter, c.status))
+  const free = computers.filter((c) => c.status === 'Available').length
+  const held = heldForWaitlist(waitlist, now)
+  const allHeld = held.length > 0 && held.length >= free
 
   return (
     <section>
@@ -42,6 +45,14 @@ export default function Board({ computers, sessions, pendingPasses, on }) {
         </div>
       </div>
 
+      {held.length > 0 && (
+        <div className="banner banner-reserved" role="status">
+          {allHeld ? 'Every free PC is' : `${held.length} of the ${free} free PCs ${held.length === 1 ? 'is' : 'are'}`} held
+          for people on the waitlist: {heldNames(held, now)}. They pick a PC on their phone; giving one to a walk-in
+          takes a turn.
+        </div>
+      )}
+
       <div className="grid">
         {shown.map((computer) => (
           <ComputerCard
@@ -50,6 +61,7 @@ export default function Board({ computers, sessions, pendingPasses, on }) {
             session={sessions.find((s) => s.computerId === computer.id)}
             pass={pendingPasses.find((p) => p.computerId === computer.id)}
             now={now}
+            held={allHeld}
             on={on}
           />
         ))}
@@ -58,7 +70,7 @@ export default function Board({ computers, sessions, pendingPasses, on }) {
   )
 }
 
-function ComputerCard({ computer, session, pass, now, on }) {
+function ComputerCard({ computer, session, pass, now, held, on }) {
   const tone = STATUS_TONE[computer.status]
   const endsAt = session?.scheduledEndAt ?? computer.sessionEndsAt
   const left = endsAt ? msUntil(endsAt, now) : null
@@ -93,11 +105,15 @@ function ComputerCard({ computer, session, pass, now, on }) {
       {computer.status === 'Reserved' && (
         <p className="muted user-empty">
           {pass
-            ? `Held for ${pass.visit.firstName} ${pass.visit.lastName} · code ${pass.code} · ${countdown(msUntil(pass.expiresAt, now))} to check in`
+            ? `Held for ${pass.visit.firstName} ${pass.visit.lastName} · ${countdown(msUntil(pass.expiresAt, now))} to check in`
             : 'Reserved: waiting for the visitor to check in'}
         </p>
       )}
-      {computer.status === 'Available' && <p className="muted user-empty">Ready for the next visitor</p>}
+      {computer.status === 'Available' && (
+        <p className={held ? 'user-empty held-text' : 'muted user-empty'}>
+          {held ? 'Held for the waitlist: the next person picks it on their phone' : 'Ready for the next visitor'}
+        </p>
+      )}
       {computer.status === 'Maintenance' && (
         <p className="user-empty problem-text">{computer.openProblem ?? 'Under maintenance'}</p>
       )}
@@ -116,8 +132,8 @@ function ComputerCard({ computer, session, pass, now, on }) {
 
       <div className="actions">
         {computer.status === 'Available' && (
-          <button className="btn btn-primary" onClick={() => on.register(computer)}>
-            Register visitor
+          <button className={held ? 'btn' : 'btn btn-primary'} onClick={() => on.register(computer)}>
+            {held ? 'Give to a walk-in anyway' : 'Register visitor'}
           </button>
         )}
         {computer.status === 'InUse' && session && (

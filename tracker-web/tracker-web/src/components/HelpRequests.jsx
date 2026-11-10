@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseUtc } from '../time.js'
+import { formatFull, parseUtc, serverNow } from '../time.js'
 import '../help.css'
 
 const FILTERS = ['Active', 'Resolved', 'All']
@@ -8,7 +8,7 @@ const MAX_RESOLVED_SHOWN = 50
 
 // "5 min ago" style text from the ISO time the API sends (UTC, maybe without the trailing Z).
 function ago(iso) {
-  const minutes = Math.max(0, Math.floor((Date.now() - parseUtc(iso).getTime()) / 60000))
+  const minutes = Math.max(0, Math.floor((serverNow() - parseUtc(iso).getTime()) / 60000))
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes} min ago`
   const hours = Math.floor(minutes / 60)
@@ -90,7 +90,7 @@ export default function HelpRequests({ tickets, sessions, onSetStatus }) {
 
               <p className="help-message">{t.message}</p>
 
-              <p className="muted small" title={parseUtc(t.createdAt).toLocaleString()}>
+              <p className="muted small" title={formatFull(t.createdAt)}>
                 Requested {ago(t.createdAt)}
                 {t.resolvedAt && ` · resolved ${ago(t.resolvedAt)}`}
               </p>

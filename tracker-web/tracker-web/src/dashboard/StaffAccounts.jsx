@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
-import { parseUtc } from '../time.js'
+import { parseUtc, serverNow } from '../time.js'
 import { dateTime } from './format.js'
 import { Badge, FormDialog } from './ui.jsx'
 
@@ -33,7 +33,7 @@ export default function StaffAccounts({ me, run }) {
     return ok
   }
 
-  const locked = (a) => a.lockedUntil && parseUtc(a.lockedUntil) > new Date()
+  const locked = (a) => a.lockedUntil && parseUtc(a.lockedUntil).getTime() > serverNow()
 
   return (
     <section className="stack">

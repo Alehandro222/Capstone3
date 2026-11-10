@@ -216,7 +216,7 @@
                 <!-- Staff menu: change the staff PIN (saved as a hash) -->
                 <StackPanel x:Name="ChangePinPanel" Visibility="Collapsed">
                     <TextBlock Text="Change the staff PIN" FontSize="30" FontWeight="Bold"/>
-                    <TextBlock Text="At least 4 characters. It is saved only as a hash in kiosk.settings.json."
+                    <TextBlock Text="At least 6 characters (longer is safer). It is saved only as a hash in kiosk.settings.json."
                                FontSize="16" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16"/>
                     <TextBlock Text="New PIN" FontWeight="Medium" Margin="0,0,0,4"/>
                     <PasswordBox x:Name="NewPinBox"/>

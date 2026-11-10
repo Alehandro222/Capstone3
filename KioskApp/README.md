@@ -55,9 +55,15 @@ Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu
 
 ### Staff PIN
 
-The PIN is never kept in plain text. To set the first one, put it in `kiosk.settings.json` as `"staffPin": "4821"` and start the app: it saves only a salted hash (`staffPinHash`) and removes `staffPin` from the file. Change it later from the staff menu (**Change the staff PIN**). If the app cannot write the file (for example, it is in a folder ordinary users cannot change), the staff menu says so; run it once as an administrator, or give the kiosk's Windows account write access to that one file.
+The PIN is never kept in plain text, and it needs **at least 6 characters** (a 4-digit PIN has only 10,000 values, which anyone who copies the hash could try in minutes). To set the first one, put it in `kiosk.settings.json` as `"staffPin": "482193"` and start the app: it saves only a salted hash (`staffPinHash`) and removes `staffPin` from the file. Change it later from the staff menu (**Change the staff PIN**). If the app cannot write the file (for example, it is in a folder ordinary users cannot change), the staff menu says so; run it once as an administrator, or give the kiosk's Windows account write access to that one file.
 
 After **5 wrong PINs** in a row, the PIN screen is locked for a minute.
+
+**Protect the settings file on the library PCs.** The hash still lets someone who copies the file guess the PIN offline, so visitors should not be able to read it. Run the kiosk under a Windows account visitors don't use, or remove read access for the visitors' account: right-click `kiosk.settings.json` → Properties → Security, and allow only Administrators, SYSTEM and the account the kiosk runs as. Do the same for `C:\ProgramData\ComputerTracker` (it holds this PC's key).
+
+### Clock
+
+Countdowns (time left, Reserved) use the tracker's clock: every answer from the tracker carries its time, and the kiosk corrects for its own clock being off. Times are only ever shown as durations here, so the PC's time zone does not matter. The tracker server's own clock should still be right: keep Windows time sync on.
 
 ## Deploying to the office computers
 
@@ -69,7 +75,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 ```
 
 3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
-4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, a `staffPin` (hashed on first start), and `visitorUrl` for the lock-screen QR.
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, a `staffPin` of 6+ characters (hashed on first start), and `visitorUrl` for the lock-screen QR. Then restrict who can read the file (see Staff PIN).
 5. Run `ComputerTrackerKiosk.exe` once. Type the pairing code an admin created for that PC, then test.
 6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
 

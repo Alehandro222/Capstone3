@@ -210,3 +210,8 @@ a.link-button { display: inline; }
   .stat-value { font-size: 1.3rem; }
   .stat-label { font-size: 0.72rem; }
 }
+
+/* Free PCs held for people on the waitlist */
+.banner.banner-reserved { background: var(--reserved-bg); color: var(--reserved); }
+.held-text { margin: 0; color: var(--reserved); }
+.form-warning { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--inuse-bg); color: var(--inuse); font-size: 0.9rem; }

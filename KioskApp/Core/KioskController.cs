@@ -61,7 +61,7 @@ public sealed class KioskController
     // Wrong staff PINs in a row before the PIN screen is locked for a while.
     public const int MaxPinFailures = 5;
     public static readonly TimeSpan PinLockout = TimeSpan.FromMinutes(1);
-    public const int MinPinLength = 4;
+    public const int MinPinLength = PinHasher.MinLength;
 
     public KioskController(KioskSettings settings, ApiClient api, IIdleSource idle, TimeSpan? tick = null)
     {
@@ -73,6 +73,9 @@ public sealed class KioskController
     }
 
     public KioskSettings Settings => _settings;
+
+    // The tracker's time (this PC's clock corrected by the last answer). Use it for countdowns.
+    public DateTime NowUtc => DateTime.UtcNow + _api.ServerClockOffset;
     public KioskState State { get; private set; }
 
     // How long the "Thank you" screen stays after a log out.
@@ -152,7 +155,7 @@ public sealed class KioskController
             if (previous is not null && _session?.Id != previous.Id && !_endingHere)
             {
                 var timeUp = previous.ScheduledEndAt != default
-                             && DateTime.UtcNow >= previous.ScheduledEndAtUtc - TimeSpan.FromSeconds(30);
+                             && NowUtc >= previous.ScheduledEndAtUtc - TimeSpan.FromSeconds(30);
                 ShowFarewell(previous.UserName, timeUp
                     ? "Your time is up. See you next time!"
                     : "Your session was ended. See you next time!");

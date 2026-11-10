@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { parseUtc } from '../time.js'
+import { formatTime, parseUtc, serverNow } from '../time.js'
 
 // The current time, updated every second (for countdowns).
 export function useNow() {
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(serverNow) // the server's clock, so it matches the PC
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
+    const timer = setInterval(() => setNow(serverNow()), 1000)
     return () => clearInterval(timer)
   }, [])
   return now
@@ -26,10 +26,8 @@ export function formatDuration(ms) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
-// "3:45 PM" in the visitor's own time zone.
-export function formatClock(iso) {
-  return parseUtc(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
+// "3:45 PM", Philippine time.
+export const formatClock = formatTime
 
 // Calls `load` now and then every `ms` milliseconds while the screen is shown.
 export function usePolling(load, ms) {
