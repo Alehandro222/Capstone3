@@ -5,6 +5,7 @@ import WalkInDialog from './components/WalkInDialog.jsx'
 import AuditLog from './dashboard/AuditLog.jsx'
 import Board from './dashboard/Board.jsx'
 import ComputerDetails from './dashboard/ComputerDetails.jsx'
+import Reports from './dashboard/Reports.jsx'
 import HelpDesk from './dashboard/HelpDesk.jsx'
 import Problems from './dashboard/Problems.jsx'
 import StaffAccounts from './dashboard/StaffAccounts.jsx'
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'problems', label: 'Problems' },
   { key: 'help', label: 'Help requests' },
   { key: 'visits', label: 'Visitor log' },
+  { key: 'reports', label: 'Reports' },
   { key: 'staff', label: 'Staff accounts', admin: true },
   { key: 'audit', label: 'Audit log', admin: true },
 ]
@@ -215,6 +217,7 @@ export default function App({ me, onSignOut }) {
         />
       )}
       {tab === 'visits' && <VisitorLog refreshKey={refreshKey} />}
+      {tab === 'reports' && <Reports isAdmin={isAdmin} refreshKey={refreshKey} />}
       {tab === 'staff' && isAdmin && <StaffAccounts me={me} run={run} />}
       {tab === 'audit' && isAdmin && <AuditLog />}
 

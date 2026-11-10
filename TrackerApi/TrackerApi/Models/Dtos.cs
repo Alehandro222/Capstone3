@@ -162,6 +162,44 @@ public record AssistDto(
     DateTime CreatedAt,
     DateTime? ResolvedAt);
 
+// ---- Reports (aggregated counts only; see ReportService) ----
+
+public record CountDto(string Key, int Count);
+
+// One day (in the center's time zone).
+public record ReportDayDto(DateOnly Day, int Visits, int Sessions, double SessionHours);
+
+public record ReportComputerDto(int ComputerId, string Name, int Sessions, double Hours);
+
+public record ReportWaitlistDto(int Joined, int GotAComputer, int MissedTurn, int Expired, int Left);
+
+// Everything the Reports page shows for a range of days. Counts only: no names.
+//   VisitsByHour / SessionsByHour: 24 entries, "0".."23" = hour of the day the visit / session started.
+//   Breakdowns list every possible answer (also those with 0) in the form's order.
+//   A visit can tick several sectors and services, so those add up to more than Visits.
+public record ReportDto(
+    DateOnly From,
+    DateOnly To,
+    string TimeZone,
+    int Visits,
+    int VisitsWithComputer,
+    int Sessions,
+    int RunningSessions,
+    double SessionHours,
+    double AverageSessionMinutes,
+    int Extensions,
+    List<ReportDayDto> ByDay,
+    List<CountDto> VisitsByHour,
+    List<CountDto> SessionsByHour,
+    List<CountDto> ByAgeGroup,
+    List<CountDto> BySex,
+    List<CountDto> BySector,
+    List<CountDto> ByService,
+    List<CountDto> BySource,
+    List<CountDto> SessionEndReasons,
+    List<ReportComputerDto> ByComputer,
+    ReportWaitlistDto Waitlist);
+
 // ---- Kiosk app ----
 
 // Shown once to an admin: staff type the code into the PC's setup screen.

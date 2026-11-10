@@ -8,7 +8,7 @@ Backend for the DTC Baguio digital login and its public computers. Visitors log 
 2. **Pick a PC (optional):** `POST /api/visits/{token}/pass`. The PC becomes **Reserved**, and the phone shows a pass: a QR code (the visit's token) plus a 6-digit backup code, valid for 10 minutes. If no PC is free, the visitor can join the waitlist.
 3. **Help desk:** staff scan the QR (or type the code) → `POST /api/passes/check-in`. The server checks the pass exists, is not expired or used, and the PC is not offline, then starts a **3-hour session**.
 4. **PC:** the kiosk app sees the session and unlocks. During the last 10 minutes the visitor can extend by 1 hour (at most twice), but only if nobody is on the waitlist.
-5. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit.
+5. **End:** the visitor ends it (phone or PC), staff end it, the kiosk logs out after 20 minutes idle, or the cleanup job ends it at the time limit. A session that runs out is recorded as ending **at its time limit**, even if the server was off then and ends it later, so reports count the real time used.
 
 **The waitlist is first come, first served.** When a PC frees up, it is held for the person who has waited longest. Their phone says a computer is ready, and they have 5 minutes to pick it; nobody else can take it meanwhile. If they don't pick in time, they are marked `Missed` and the next person gets it. (Staff can still give a PC to a walk-in at the desk.)
 
@@ -107,6 +107,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `session.end`, `session.extend`
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
 - `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
+- `report.export`: a report download (format, table, dates, and whether it had names)
 
 ## Settings (`appsettings.json`, section `Tracker`)
 
@@ -123,6 +124,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `240` |
 | `WaitlistOfferMinutes` | A freed PC is held this long for the first person waiting | `5` |
 | `CleanupIntervalSeconds` | How often passes expire and overdue sessions end | `15` |
+| `TimeZone` | The center's time zone: reports count days and hours of the day in it, and exports show times in it. Stored times stay UTC. Falls back to a fixed UTC+8 if Windows can't find it. | `Asia/Manila` |
 
 ### Rate limits (section `RateLimits`)
 
@@ -180,6 +182,8 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | GET / POST | `/api/problems` | List (`?status=Open&computerId=`) / open a problem report (the PC shows as Maintenance until every open report on it is resolved) |
 | PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
 | GET | `/api/waitlist` | Everyone waiting, in order |
+| GET | `/api/reports/summary` | Counts for a range of days (`?from=2026-11-01&to=2026-11-30`, both included, days in `TimeZone`; default today; at most 366 days): see Reports |
+| GET | `/api/reports/export` | Download: `?format=xlsx` (summary and days), `&names=true` adds the visitor and session lists (**admin**); `?format=csv&table=summary\|days\|visits\|sessions` (visits/sessions: **admin**) |
 | GET / POST | `/api/assist` | Help requests (`?status=Open`) / create one `{ computerId, message }` (500 characters max) |
 | PUT | `/api/assist/{id}/status` | `{ status }`: Open, InProgress or Resolved |
 | GET / POST | `/api/peripherals` | List (`?computerId=`, `?inUse=`) / add a peripheral |
@@ -210,6 +214,22 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | POST | `/api/staff/{id}/password` | admin | Set a new password |
 | POST | `/api/staff/{id}/unlock` | admin | Clear a lockout |
 | GET | `/api/audit` | admin | Search the audit log (`?staffId=&action=pass.&targetType=&targetId=&from=&to=&limit=`) |
+
+## Reports
+
+`GET /api/reports/summary` returns **counts only, no names**, for a range of days in the center's time zone (a "day" in Baguio runs from midnight to midnight Philippine time):
+
+- Totals: visits, visitors who used a PC, PC sessions, PC hours, average session length, extensions, sessions still running
+- Per day: visits, PC sessions, PC hours
+- Per hour of the day (0-23): visits, and PC sessions started
+- By age group, sex, sector, purpose / services availed, and how the visit was registered. Every possible answer is listed, also those with 0, in the form's order. A visitor can tick several sectors and services, so those add up to more than the number of visits.
+- How PC sessions ended, PC sessions and hours per PC, and the waitlist (joined, got a PC, missed their turn, waited too long, left)
+
+Sessions count on the day they **started**. A running session counts until now, but never past its time limit.
+
+**Exports** (`/api/reports/export`): any staff member can download the counts (Excel with *Summary* and *By day* sheets, or CSV). The **lists with names** (Excel *Visits* and *PC sessions* sheets, or the `visits` / `sessions` CSV) are **admin only** (Data Privacy Act: least access). Every download is recorded in the audit log as `report.export`, with "with names" when it held any. CSVs are UTF-8 with a BOM, so Excel shows "ñ" correctly, and a cell that starts with `=`, `+`, `-` or `@` gets a leading `'`, so a name typed as a formula stays text. Times in exports are Philippine time.
+
+The phase 7 Gemini assistant should use the **summary** only: it has no names or individual records.
 
 ## Database rules
 

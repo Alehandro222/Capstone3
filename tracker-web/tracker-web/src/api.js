@@ -85,6 +85,11 @@ export const api = {
   setAssistStatus: (ticketId, status) =>
     send('PUT', `/api/assist/${ticketId}/status`, { status }),
 
+  // Reports: counts for a range of Philippine days (YYYY-MM-DD, both included).
+  getReport: (from, to) => request(`/api/reports/summary${query({ from, to })}`),
+  // Downloads an export (xlsx or csv) and hands it to the browser as a file.
+  downloadReport: (params) => download(`/api/reports/export${query(params)}`),
+
   // ---- Admin only ----
   getStaff: () => request('/api/staff'),
   createStaff: (account) => send('POST', '/api/staff', account),
@@ -95,6 +100,32 @@ export const api = {
   addComputer: (name) => send('POST', '/api/computers', { name }),
   createPairingCode: (computerId) => send('POST', `/api/computers/${computerId}/pairing-code`),
   unpairComputer: (computerId) => send('POST', `/api/computers/${computerId}/unpair`),
+}
+
+// Fetches a file (sign-in cookie included) and saves it under the name the API gives it.
+async function download(path) {
+  const res = await fetch(`${BASE}${path}`)
+  noteServerDate(res.headers.get('Date'))
+  if (!res.ok) {
+    let message = `Download failed (${res.status})`
+    try {
+      message = (await res.json()).message ?? message
+    } catch {
+      /* no JSON body */
+    }
+    const error = new Error(message)
+    error.status = res.status
+    throw error
+  }
+  const name = /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'report'
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
 // True when the request never reached the API (it is down or still starting).

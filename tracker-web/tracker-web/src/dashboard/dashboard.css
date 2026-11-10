@@ -215,3 +215,60 @@ a.link-button { display: inline; }
 .banner.banner-reserved { background: var(--reserved-bg); color: var(--reserved); }
 .held-text { margin: 0; color: var(--reserved); }
 .form-warning { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--inuse-bg); color: var(--inuse); font-size: 0.9rem; }
+
+/* Reports. One hue (the primary blue) for every chart: each shows a single measure. */
+.reports .panel h3 { margin: 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: grid;
+  gap: 2px;
+}
+.tile-value { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile-label { color: var(--muted); font-size: 0.9rem; }
+.report-grid { display: grid; gap: 16px; }
+.report-grid.two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.report-grid.three { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+.hbars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hbar { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 10px; font-size: 0.88rem; }
+.hbar-label { overflow-wrap: anywhere; }
+.hbar-track { height: 12px; display: block; }
+.hbar-fill { display: block; height: 100%; min-width: 2px; background: var(--primary); border-radius: 0 4px 4px 0; }
+.hbar-value { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+.columns { display: grid; gap: 4px; position: relative; }
+.columns-max { position: absolute; top: -2px; left: 0; }
+.columns-plot {
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding-top: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; position: relative; outline: none; cursor: default; }
+.col-fill { display: block; width: 100%; min-height: 1px; background: var(--primary); border-radius: 4px 4px 0 0; opacity: 0.85; }
+.col-on .col-fill, .col:focus-visible .col-fill { opacity: 1; }
+.col:focus-visible { box-shadow: 0 0 0 2px var(--primary); border-radius: 4px; }
+.col-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.columns-axis { display: flex; gap: 2px; }
+.columns-axis span { flex: 1 1 0; text-align: center; white-space: nowrap; overflow: visible; font-size: 0.72rem; }
+.table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.h3-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
