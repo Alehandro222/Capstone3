@@ -60,7 +60,7 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 | **Problems** | Open problem reports (**Report a problem**, **Resolve** with optional notes) and recently resolved ones. A PC with an open report shows as Maintenance. |
 | **Help requests** | "Need help?" requests from the kiosk app on each PC. |
 | **Visitor log** | Every visit logged on a chosen day (phone, help desk or kiosk), with the DTC form answers. |
-| **Reports** | Counts for a period (today, yesterday, this week, this month, last month, or custom dates), in Philippine time: totals, visits and PC sessions per day and per hour of the day, age, sex, sector, purpose, how visitors registered, how sessions ended, hours per PC, the waitlist. Each day/hour chart has a table view. **Download** gives Excel or CSV of the counts; admins can also download the visitor and session lists with names (recorded in the audit log). |
+| **Reports** | Counts for a period (today, yesterday, this week, this month, last month, or custom dates), in Philippine time: totals, visits and PC sessions per day and per hour of the day, age, sex, sector, purpose, how visitors registered, how sessions ended, hours per PC, the waitlist. Each day/hour chart has a table view. **Download** gives Excel or CSV of the counts; admins can also download the visitor and session lists with names (recorded in the audit log). Admins can also have **Gemini** write a draft of the period's report: only the counts are sent, and the panel shows exactly what was sent (see the API README to set it up). |
 | **Staff accounts** (admin) | Add accounts, edit name / role / active, set a new password, unlock after too many wrong passwords. Accounts are deactivated, never deleted. |
 | **Audit log** (admin) | Who did what and when, filtered by person, kind of action and dates. |
 
@@ -107,6 +107,7 @@ src/
     StaffAccounts.jsx        admin: staff accounts
     AuditLog.jsx             admin: audit log with filters
     Reports.jsx              reports for a period: tiles, charts, downloads
+    ReportAssistant.jsx      admin: report draft by Gemini (counts only), copy / download
     format.js, ui.jsx        labels, time formatting, dialogs
     dashboard.css
   components/

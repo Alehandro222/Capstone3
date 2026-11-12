@@ -39,6 +39,8 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AssistService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<RetentionService>();
+builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection(GeminiOptions.Section));
+builder.Services.AddHttpClient<ReportAssistant>();
 builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signed in
 
 // Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).

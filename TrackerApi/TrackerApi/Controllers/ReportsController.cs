@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrackerApi.Auth;
 using TrackerApi.Models;
@@ -13,11 +14,34 @@ public class ReportsController : ControllerBase
 {
     private readonly ReportService _reports;
     private readonly AuditService _audit;
+    private readonly ReportAssistant _assistant;
 
-    public ReportsController(ReportService reports, AuditService audit)
+    public ReportsController(ReportService reports, AuditService audit, ReportAssistant assistant)
     {
         _reports = reports;
         _audit = audit;
+        _assistant = assistant;
+    }
+
+    // GET api/reports/assistant -> is the Gemini report assistant set up? (admin)
+    [HttpGet("assistant")]
+    [Authorize(Policy = Policies.Admin)]
+    public AssistantStatusDto AssistantStatus() => new(_assistant.IsConfigured, _assistant.Model);
+
+    // POST api/reports/assistant   body: { "from": "2026-11-01", "to": "2026-11-30" }   (admin)
+    // Drafts the period's report with Gemini. Sends ONLY the summary's counts (no names,
+    // no individual records, no free text); returns the draft and exactly what was sent.
+    [HttpPost("assistant")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<AssistantDraftDto> Assistant(AssistantRequest request, CancellationToken ct)
+    {
+        var (start, end) = _reports.Range(request.From, request.To);
+        var facts = ReportAssistant.Facts(await _reports.SummaryAsync(start, end));
+        var draft = await _assistant.DraftAsync(facts, ct);
+
+        await _audit.RecordAsync("report.assistant", null, null,
+            $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}, {_assistant.Model} (counts only)");
+        return new AssistantDraftDto(start, end, _assistant.Model, draft, facts);
     }
 
     // GET api/reports/summary?from=2026-11-01&to=2026-11-30

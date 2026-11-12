@@ -28,14 +28,17 @@ public class TrackerFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly bool _rateLimits;
     private readonly System.Net.IPAddress? _remoteIp;
+    private readonly HttpMessageHandler? _gemini;
     private readonly Dictionary<int, HttpClient> _kiosks = new();
 
     // remoteIp: where requests appear to come from (the in-memory server has no real
     // network). 127.0.0.1 = the website's server on the same PC, forwarding for phones.
-    public TrackerFactory(bool rateLimits = false, System.Net.IPAddress? remoteIp = null)
+    // gemini: stands in for Google's Gemini API (the report assistant), with a test API key.
+    public TrackerFactory(bool rateLimits = false, System.Net.IPAddress? remoteIp = null, HttpMessageHandler? gemini = null)
     {
         _rateLimits = rateLimits;
         _remoteIp = remoteIp;
+        _gemini = gemini;
     }
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 7, 1, 0, 0, TimeSpan.Zero));
@@ -50,6 +53,7 @@ public class TrackerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Tracker:RequireHeartbeat", "true");
         builder.UseSetting("Tracker:CleanupIntervalSeconds", "0");
         builder.UseSetting("RateLimits:Enabled", _rateLimits ? "true" : "false");
+        builder.UseSetting("Gemini:ApiKey", _gemini is null ? "" : "test-gemini-key");
 
         builder.ConfigureServices(services =>
         {
@@ -58,6 +62,9 @@ public class TrackerFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+
+            if (_gemini is not null)
+                services.AddHttpClient<ReportAssistant>().ConfigurePrimaryHttpMessageHandler(() => _gemini);
 
             if (_remoteIp is not null)
                 services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter>(new RemoteIpFilter(_remoteIp));

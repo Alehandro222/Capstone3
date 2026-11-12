@@ -272,3 +272,27 @@ a.link-button { display: inline; }
 .columns-axis span { flex: 1 1 0; text-align: center; white-space: nowrap; overflow: visible; font-size: 0.72rem; }
 .table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .h3-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+/* Report draft by Gemini */
+.assistant .draft {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  background: var(--bg);
+  line-height: 1.55;
+  max-width: 75ch;
+}
+.assistant .draft h4 { margin: 14px 0 4px; font-size: 1rem; }
+.assistant .draft h4:first-child { margin-top: 0; }
+.assistant .draft p, .assistant .draft ul { margin: 0 0 8px; }
+.assistant .sent summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.assistant .sent pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
