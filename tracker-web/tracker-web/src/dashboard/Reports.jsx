@@ -3,32 +3,8 @@ import { api } from '../api'
 import { AGE_GROUPS, SECTORS, SERVICES, SEXES } from '../registration.js'
 import { todayInManila } from '../time.js'
 import { END_REASON_LABEL, SOURCE_LABEL } from './format.js'
+import { PERIODS, dayLabel, hourLabel, monthStart, periodRange } from './periods.js'
 import { Empty } from './ui.jsx'
-
-// ---- Periods (Philippine days, "YYYY-MM-DD") ----
-const shift = (day, days) => {
-  const d = new Date(`${day}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-const weekday = (day) => (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7 // Monday = 0
-const monthStart = (day) => `${day.slice(0, 8)}01`
-
-const PERIODS = [
-  { key: 'today', label: 'Today', range: (t) => [t, t] },
-  { key: 'yesterday', label: 'Yesterday', range: (t) => [shift(t, -1), shift(t, -1)] },
-  { key: 'week', label: 'This week', range: (t) => [shift(t, -weekday(t)), t] },
-  { key: 'month', label: 'This month', range: (t) => [monthStart(t), t] },
-  {
-    key: 'lastMonth',
-    label: 'Last month',
-    range: (t) => {
-      const end = shift(monthStart(t), -1)
-      return [monthStart(end), end]
-    },
-  },
-  { key: 'custom', label: 'Custom' },
-]
 
 const label = (options) => Object.fromEntries(options.map((o) => [o.value, o.label]))
 const LABELS = {
@@ -40,12 +16,6 @@ const LABELS = {
   end: END_REASON_LABEL,
 }
 
-const dayLabel = (day) =>
-  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-PH', { timeZone: 'UTC', month: 'short', day: 'numeric' })
-const hourLabel = (h) => {
-  const n = Number(h)
-  return `${n % 12 === 0 ? 12 : n % 12} ${n < 12 ? 'AM' : 'PM'}`
-}
 const fmt = (n) => n.toLocaleString('en-PH', { maximumFractionDigits: 1 })
 
 // Reports: visits and PC use for a period, counted in Philippine time.
@@ -58,7 +28,7 @@ export default function Reports({ isAdmin, refreshKey }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('') // which download is running
 
-  const [from, to] = period === 'custom' ? [custom.from, custom.to] : PERIODS.find((p) => p.key === period).range(today)
+  const [from, to] = period === 'custom' ? [custom.from, custom.to] : periodRange(period, today)
 
   useEffect(() => {
     if (!from || !to) return undefined

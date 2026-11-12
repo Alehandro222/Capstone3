@@ -10,7 +10,7 @@ show a QR pass at the help desk, and the session runs on the PC with a time limi
 |---|---|---|
 | `TrackerApi/TrackerApi` | ASP.NET Core 8 API + SQLite (EF Core migrations) | `dotnet run` (port 5080) |
 | `TrackerApi/TrackerApi.Tests` | xUnit tests: whole API in memory, fake clock | `dotnet test` |
-| `tracker-web/tracker-web` | React + Vite: staff dashboard (`/`, tabs: help desk, computers, waitlist, problems, help requests, visitor log, admin), visitor phone app (`#/visit`), entrance poster (`#/poster`) | `npm run dev` (5173), `npm run dev:lan` for phones |
+| `tracker-web/tracker-web` | React + Vite: staff dashboard (`/`, tabs: help desk, computers, waitlist, problems, help requests, visitor log, reports, admin), visitor phone app (`#/visit`), entrance poster (`#/poster`) | `npm run dev` (5173), `npm run dev:lan` for phones, `npm test` |
 | `KioskApp` | WPF app on each library PC: lock screen, session bar, staff menu | `dotnet run` |
 | `KioskApp.Tests` | xUnit tests for the kiosk's logic (`KioskApp/Core`), tracker faked | `dotnet test` |
 
@@ -38,19 +38,23 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 - **Waitlist is first come, first served:** a freed PC is held 5 minutes for whoever waited longest; missed turn → next person. Entries last 4 hours.
 - **Each PC has its own kiosk key** from a one-time pairing code (admin creates it); a kiosk can only see/act on its own PC.
 - **Staff end sessions only with reason "Staff".** PC status is computed, never stored.
+- **Data retention (DTC): visitor names kept 1 year**, then removed by the cleanup job (`KeepVisitorNamesDays`); anonymous answers stay for reports. If DTC later wants whole records deleted, change `RetentionService`.
 - Phone app styling comes from the Figma Make file "LibPC Mobile Web App" (all CSS classes `v-`).
 
 ## Still open (ask the user when relevant)
 
-- **How long to keep visitor names** (data retention) – user will confirm with DTC.
+- **Hosting:** user wants free services (Netlify for the website, Supabase mentioned for the backend) while testing. Not decided how the ASP.NET API + SQLite fit (see the phase 8 discussion); kiosks and the help desk would then need internet.
+- **Kiosk lockdown at DTC:** user plans auto-sign-in + start-up app; explain the gaps (Task Manager, Win key, closing the app) and settle the Windows setup in phase 8.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-3 are on `master`. Phase 4 is on branch `phase-4-dashboard`; phase 5 (and later fixes to the dashboard) on `phase-5-kiosk`, branched from phase 4; phase 6 on `phase-6-reports`, branched from phase 5. Phases 4-6 are pushed to `Alehandro222/Capstone3`; none is merged. Ask before merging into `master` or pushing a new branch.
+- Phases 1-6 are merged into `master` and pushed (`Alehandro222/Capstone3`). Pre-trial fixes are on branch `trial-fixes`. Ask before merging into `master` or pushing a new branch.
 
 ## Working notes
 
 - Errors from the API are always `{ "message": "..." }`; services throw `TrackerException`.
 - Enums are stored and sent as text. All times are UTC from the injected `TimeProvider` (tests use a fake clock). Pages show Philippine time (`Asia/Manila`, UTC+8, no DST; `tracker-web/src/time.js`); reports in phase 6 must group by Manila days too. Countdowns (web and kiosk) use the server's clock from the HTTP `Date` header.
 - Reports: only aggregated counts leave the summary endpoint; lists with names are admin-only exports, audited as `report.export`. Phase 7 (Gemini) must use the summary only.
+- Phones reach the API through the website's server: it sends `X-Forwarded-For` (Vite `xfwd`), and the API trusts it only from loopback. Any new hosting proxy must be added to `KnownProxies`, or all visitors share one rate limit.
+- The kiosk locks by itself when the tracker is unreachable (log out, idle, out of time + 30 s) and reports the reason later.
 - Help desk uses a keyboard-mode (HID) QR scanner; one help-desk unit. Don't show pass codes or tokens on staff screens: the visitor shows their own pass.
 - Kiosk staff PIN: 6+ characters, hashed; deployment must restrict read access to `kiosk.settings.json` and `C:\ProgramData\ComputerTracker`.
 - New tables/columns: add an EF migration (`dotnet tool restore`, then `dotnet dotnet-ef migrations add Name` in the inner API folder).

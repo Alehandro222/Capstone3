@@ -42,4 +42,9 @@ public class TrackerOptions
     // The center's time zone. Reports count "days" and "hours of the day" in it, and
     // exports show times in it. Stored times stay UTC. (Philippines: UTC+8, no DST.)
     public string TimeZone { get; set; } = "Asia/Manila";
+
+    // Data retention (DTC: 1 year). Visitors' first and last names are removed this many days
+    // after the visit; age group, sex, sectors, services and PC use stay, without a name,
+    // so reports for older periods still add up. 0 = never remove.
+    public int KeepVisitorNamesDays { get; set; } = 365;
 }

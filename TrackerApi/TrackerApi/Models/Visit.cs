@@ -63,6 +63,10 @@ public class Visit
 
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+
+    // DTC keeps visitors' names for 1 year (Tracker:KeepVisitorNamesDays). After that the
+    // cleanup job blanks them and sets this; the anonymous answers stay for the reports.
+    public DateTime? NamesRemovedAt { get; set; }
     public AgeGroup AgeGroup { get; set; }
     public Sex Sex { get; set; }
     public List<VisitSector> Sectors { get; set; } = new();
@@ -78,7 +82,9 @@ public class Visit
     public List<UsageSession> Sessions { get; set; } = new();
     public List<WaitlistEntry> WaitlistEntries { get; set; } = new();
 
-    public string FullName => $"{FirstName} {LastName}";
+    public const string RemovedName = "(name removed)";
+
+    public string FullName => NamesRemovedAt is null ? $"{FirstName} {LastName}" : RemovedName;
 }
 
 // One row per sector ticked (a "join table").

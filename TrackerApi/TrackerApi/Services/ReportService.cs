@@ -248,7 +248,8 @@ public class ReportService
                         new[] { "Date and time", "First name", "Last name", "Age", "Sex", "Sector", "Purpose / services availed", "Registered by" },
                         visits.Select(v => new object?[]
                         {
-                            ToLocal(v.CreatedAt), v.FirstName, v.LastName, Labels.Of(v.AgeGroup), Labels.Of(v.Sex),
+                            ToLocal(v.CreatedAt), v.NamesRemovedAt is null ? v.FirstName : Visit.RemovedName, v.LastName,
+                            Labels.Of(v.AgeGroup), Labels.Of(v.Sex),
                             string.Join(", ", v.Sectors.Select(s => s.Sector).OrderBy(s => s).Select(Labels.Of)),
                             string.Join(", ", v.Services.Select(s => s.Service).OrderBy(s => s).Select(Labels.Of)),
                             Labels.Of(v.Source)

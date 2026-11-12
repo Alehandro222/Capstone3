@@ -500,6 +500,9 @@ namespace TrackerApi.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("NamesRemovedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Sex")
                         .IsRequired()
                         .HasMaxLength(32)

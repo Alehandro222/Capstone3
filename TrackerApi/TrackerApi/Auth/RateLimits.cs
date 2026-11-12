@@ -24,9 +24,10 @@ public class RateLimitOptions
 // every PC with a script, flood the waitlist, or guess passwords at speed.
 // Over the limit, the API answers 429 with a message and a Retry-After header.
 //
-// NOTE: limits are per IP address. If the API is ever put behind a proxy, every
-// request would share the proxy's address; the proxy's forwarded address must
-// then be used instead (UseForwardedHeaders).
+// Limits are per IP address. The website's server forwards requests from this PC, so
+// Program.cs reads the visitor's address from X-Forwarded-For when (and only when) the
+// request comes from this machine. A proxy on another machine would need to be added to
+// ForwardedHeadersOptions.KnownProxies.
 public static class RateLimits
 {
     public const string SignIn = "signin";

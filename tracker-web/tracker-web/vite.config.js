@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: API,
+          // Tell the API each phone's real address (X-Forwarded-For). Without it every
+          // phone looks like this server, and they all share one rate limit.
+          xfwd: true,
           // API down or still starting: answer 502 with a message the pages can show,
           // instead of the default empty 500 (which looks like an API bug).
           configure: (proxy) => {
