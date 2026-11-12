@@ -55,6 +55,16 @@ public sealed class KioskController
     private DateTime _lastHelpUtc = DateTime.MinValue;
     private DateTime? _reservedUntil;
     private bool _endingHere; // this kiosk is ending the session itself (it shows its own farewell)
+
+    // A session this PC locked by itself because it could not reach the tracker (log out,
+    // idle, or out of time during an outage). The screen stays locked even while the
+    // tracker still lists it; Reason ("Visitor"/"Idle") is sent once the tracker is back.
+    // Reason null = out of time: the tracker ends it by itself.
+    private (int SessionId, string? Reason)? _lockedHere;
+
+    // Out of time: lock this long after the end time if the tracker has not ended it yet
+    // (normally it does within ~20 seconds; this matters when the tracker can't be reached).
+    public static readonly TimeSpan TimeLimitGrace = TimeSpan.FromSeconds(30);
     private int _pinFailures;
     private DateTime _pinLockedUntilUtc = DateTime.MinValue;
 
@@ -118,8 +128,7 @@ public sealed class KioskController
                     await RefreshAsync();
                 }
 
-                await CheckIdleAsync();
-                Publish();
+                await CheckTimersAsync();
                 Ticked?.Invoke();
             }
             catch (Exception ex)
@@ -145,9 +154,33 @@ public sealed class KioskController
             // One call: "this PC is on" (otherwise the tracker shows it Offline),
             // answered with this PC's status and its session.
             var state = await _api.HeartbeatAsync();
+
+            // Back in touch after locking a session by itself: tell the tracker, then forget it
+            // once the tracker no longer lists that session.
+            if (_lockedHere is { } locked)
+            {
+                if (state.Session?.Id == locked.SessionId && locked.Reason is not null)
+                {
+                    try
+                    {
+                        await _api.EndSessionAsync(locked.Reason);
+                        state = await _api.HeartbeatAsync();
+                    }
+                    catch (Exception ex) when (IsApiFailure(ex))
+                    {
+                        // Try again on the next refresh; the screen stays locked meanwhile.
+                    }
+                }
+                // Locked as "out of time" from an old end time, but the session was extended
+                // meanwhile (phone or staff): it is still theirs.
+                var extended = locked.Reason is null && state.Session?.Id == locked.SessionId
+                               && NowUtc < Utc.Of(state.Session.ScheduledEndAt) + TimeLimitGrace;
+                if (state.Session?.Id != locked.SessionId || extended) _lockedHere = null;
+            }
+
             var previous = _session;
             _computer = state.Computer;
-            _session = state.Session;
+            _session = state.Session?.Id == _lockedHere?.SessionId ? null : state.Session;
             _reservedUntil = state.ReservedUntil is DateTime until ? Utc.Of(until) : null;
 
             // The session ended somewhere else: the time limit, staff on the dashboard, or the
@@ -159,7 +192,7 @@ public sealed class KioskController
                 ShowFarewell(previous.UserName, timeUp
                     ? "Your time is up. See you next time!"
                     : "Your session was ended. See you next time!");
-                _session = state.Session;
+                _session = state.Session?.Id == _lockedHere?.SessionId ? null : state.Session;
             }
             _keyRejected = false;
             _offline = false;
@@ -362,6 +395,14 @@ public sealed class KioskController
             await RefreshAsync();
             return null;
         }
+        catch (Exception ex) when (IsUnreachable(ex))
+        {
+            // No tracker right now: lock this PC anyway (a public PC must never stay open)
+            // and tell the tracker when it is back.
+            LockHere(session, reason, farewellText);
+            Publish();
+            return null;
+        }
         catch (Exception ex) when (IsApiFailure(ex))
         {
             return Describe(ex);
@@ -370,6 +411,12 @@ public sealed class KioskController
         {
             _endingHere = false;
         }
+    }
+
+    private void LockHere(SessionDto session, string? reason, string farewellText)
+    {
+        _lockedHere = (session.Id, reason);
+        ShowFarewell(session.UserName, farewellText);
     }
 
     private void ShowFarewell(string name, string text)
@@ -381,8 +428,23 @@ public sealed class KioskController
         _idleSecondsLeft = null;
     }
 
+    // Once a second: idle logout, and locking when out of time. (The main loop calls it; so do tests.)
+    public async Task CheckTimersAsync()
+    {
+        await CheckIdleAsync();
+        Publish();
+    }
+
     private async Task CheckIdleAsync()
     {
+        // Out of time but still showing the session (the tracker could not be reached to end it).
+        if (_session is { } current && current.ScheduledEndAt != default
+            && NowUtc >= current.ScheduledEndAtUtc + TimeLimitGrace)
+        {
+            LockHere(current, reason: null, "Your time is up. See you next time!");
+            return;
+        }
+
         if (_session is null || _computer?.Status != ComputerStatus.InUse || _settings.IdleTimeoutSeconds <= 0)
         {
             _idleSecondsLeft = null;
@@ -411,7 +473,7 @@ public sealed class KioskController
 
         var showFarewell = _farewellName is not null
                            && DateTime.UtcNow < _farewellUntilUtc
-                           && _computer.Status != ComputerStatus.InUse;
+                           && (_computer.Status != ComputerStatus.InUse || _lockedHere is not null);
         if (showFarewell)
             return new KioskState(KioskView.Farewell, _computer, null, _farewellName, _farewellText, _offline);
 
@@ -421,6 +483,8 @@ public sealed class KioskController
                 new KioskState(KioskView.OutOfService, _computer, Offline: _offline),
             ComputerStatus.Reserved =>
                 new KioskState(KioskView.Reserved, _computer, Offline: _offline, ReservedUntil: _reservedUntil),
+            ComputerStatus.InUse when _lockedHere is not null && _session is null => // locked here; the tracker hasn't caught up
+                new KioskState(KioskView.Locked, _computer, Offline: _offline),
             ComputerStatus.InUse when _session is not null =>
                 new KioskState(KioskView.InSession, _computer, _session, Offline: _offline, IdleSecondsLeft: _idleSecondsLeft),
             ComputerStatus.InUse => // the session was just created; it arrives on the next refresh
@@ -454,6 +518,10 @@ public sealed class KioskController
         && a.FarewellText == b.FarewellText
         && a.IdleSecondsLeft == b.IdleSecondsLeft
         && a.KeyRejected == b.KeyRejected;
+
+    // The tracker could not be reached (network down, server off or failing).
+    private static bool IsUnreachable(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException || ex is ApiException { StatusCode: >= 500 };
 
     private static bool IsApiFailure(Exception ex) =>
         ex is ApiException or HttpRequestException or TaskCanceledException or JsonException;

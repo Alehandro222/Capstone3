@@ -78,6 +78,14 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 
 Everyone can **Change password** (top of the page).
 
+## Tests
+
+```bash
+npm test
+```
+
+Node's built-in test runner (no extra packages) checks the parts that are easy to get wrong: report periods (this week, last month, leap years), Philippine time and day boundaries, the server-clock correction, countdowns and the waitlist hold (`test/*.test.js`).
+
 ## Structure
 
 ```

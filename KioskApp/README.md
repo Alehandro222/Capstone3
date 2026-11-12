@@ -83,6 +83,13 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 
 This is an unsigned program, so Windows **Smart App Control** blocks it where it is turned on, as happened with the API. Either turn it off on those PCs, or sign the .exe with a code-signing certificate.
 
+## When the tracker can't be reached
+
+The box at the top says "Connection lost" and the PC keeps showing what it last knew, but a public PC never stays open because of it:
+
+- **Log out** and the **20-minute idle logout** lock the PC straight away; the kiosk tells the tracker why the session ended once it is back.
+- **Out of time:** 30 seconds after the end time, the PC locks by itself (the tracker ends the session on its side when it comes back). If the session was extended meanwhile (on the phone or by staff), it comes back.
+
 ## What this does not do
 
 - **It is not a full Windows lockdown.** The login screen covers the desktop, but it cannot block Ctrl+Alt+Del, Task Manager or the Windows key. For that, use Windows **Assigned Access** (kiosk mode) or Group Policy on the office PCs.

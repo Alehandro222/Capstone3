@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Auth;
 using TrackerApi.Data;
@@ -37,6 +38,7 @@ builder.Services.AddScoped<StaffService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AssistService>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<RetentionService>();
 builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signed in
 
 // Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).
@@ -77,6 +79,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Behind the website's server (the Vite dev server today), every request comes from this PC.
+// Use the visitor's address it passes on in X-Forwarded-For, but only when the request comes
+// from this machine itself (ASP.NET trusts only loopback proxies by default), so a phone
+// cannot fake its address to dodge the rate limits.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor });
 
 app.UseRateLimiter();
 app.UseAuthentication();

@@ -203,6 +203,80 @@ public class KioskCoreTests : IDisposable
         Assert.Equal("Someone is waiting for a computer, so sessions can't be extended.", await controller.ExtendAsync());
     }
 
+    // ---- When the tracker can't be reached --------------------------------------
+
+    [Fact]
+    public async Task Idle_logout_locks_the_pc_even_when_the_tracker_is_down_and_tells_it_later()
+    {
+        var idle = new SetIdle();
+        var tracker = new FakeTracker { Next = State("InUse", Session(endsAt: DateTime.UtcNow.AddHours(2))) };
+        var settings = PairedSettings();
+        settings.IdleTimeoutSeconds = 1200;
+        var controller = NewController(settings, tracker, idle);
+        await controller.RefreshAsync();
+
+        tracker.Unreachable = true;
+        idle.Idle = TimeSpan.FromMinutes(21);
+        await controller.CheckTimersAsync();
+
+        Assert.Equal(KioskView.Farewell, controller.State.View);
+
+        // Still down, and the tracker's last word was "in use": the screen stays locked.
+        await controller.RefreshAsync();
+        Assert.NotEqual(KioskView.InSession, controller.State.View);
+
+        // Back: the kiosk tells the tracker why it ended, and stays locked.
+        tracker.Unreachable = false;
+        tracker.Calls.Clear();
+        tracker.AfterEnd = State("Available");
+        await controller.RefreshAsync();
+        Assert.Contains("api/kiosk/session/end", tracker.Calls);
+        Assert.Contains("\"reason\":\"Idle\"", tracker.LastEndBody);
+        Assert.NotEqual(KioskView.InSession, controller.State.View);
+    }
+
+    [Fact]
+    public async Task Log_out_works_without_the_tracker()
+    {
+        var tracker = new FakeTracker { Next = State("InUse", Session(endsAt: DateTime.UtcNow.AddHours(2))) };
+        var controller = NewController(PairedSettings(), tracker);
+        await controller.RefreshAsync();
+
+        tracker.Unreachable = true;
+        Assert.Null(await controller.LogOutAsync()); // no error: the PC locks anyway
+        Assert.Equal(KioskView.Farewell, controller.State.View);
+    }
+
+    [Fact]
+    public async Task Out_of_time_locks_even_if_the_tracker_never_ends_the_session()
+    {
+        var tracker = new FakeTracker { Next = State("InUse", Session(endsAt: DateTime.UtcNow.AddSeconds(-31))) };
+        var controller = NewController(PairedSettings(), tracker);
+        await controller.RefreshAsync();
+        Assert.Equal(KioskView.InSession, controller.State.View);
+
+        tracker.Unreachable = true;
+        await controller.CheckTimersAsync();
+        Assert.Equal(KioskView.Farewell, controller.State.View);
+        Assert.Contains("time is up", controller.State.FarewellText);
+        Assert.DoesNotContain("api/kiosk/session/end", tracker.Calls); // the tracker ends it by itself
+    }
+
+    [Fact]
+    public async Task A_session_extended_elsewhere_during_an_outage_comes_back()
+    {
+        var tracker = new FakeTracker { Next = State("InUse", Session(endsAt: DateTime.UtcNow.AddSeconds(-31))) };
+        var controller = NewController(PairedSettings(), tracker);
+        await controller.RefreshAsync();
+        tracker.Unreachable = true;
+        await controller.CheckTimersAsync(); // locked: out of time, as far as this PC knew
+
+        tracker.Unreachable = false;
+        tracker.Next = State("InUse", Session(endsAt: DateTime.UtcNow.AddMinutes(50), extensions: 1)); // extended on the phone
+        await controller.RefreshAsync();
+        Assert.NotNull(controller.State.Session);
+    }
+
     // ---- Helpers -------------------------------------------------------------
 
     private KioskSettings PairedSettings()
@@ -213,9 +287,9 @@ public class KioskCoreTests : IDisposable
         return settings;
     }
 
-    private static KioskController NewController(KioskSettings settings, FakeTracker tracker) =>
+    private static KioskController NewController(KioskSettings settings, FakeTracker tracker, IIdleSource? idle = null) =>
         new(settings, new ApiClient("http://tracker.test/", () => settings.KioskKey, () => settings.ComputerId, tracker),
-            new NoIdle());
+            idle ?? new NoIdle());
 
     private static SessionDto Session(DateTime endsAt, bool canExtend = false, int extensions = 0) =>
         new(7, 1, "Maria Santos", "Use of ICT Equipment", endsAt.AddHours(-3), null, endsAt, extensions, canExtend,
@@ -233,6 +307,12 @@ public class KioskCoreTests : IDisposable
         public TimeSpan GetIdleTime() => TimeSpan.Zero;
     }
 
+    private sealed class SetIdle : IIdleSource
+    {
+        public TimeSpan Idle { get; set; }
+        public TimeSpan GetIdleTime() => Idle;
+    }
+
     // Stands in for TrackerApi: every call answers with Next (or Fail).
     private sealed class FakeTracker : HttpMessageHandler
     {
@@ -242,11 +322,21 @@ public class KioskCoreTests : IDisposable
         public (HttpStatusCode Status, string Message)? Fail { get; set; }
         public List<string> Calls { get; } = new();
         public DateTimeOffset? ServerTime { get; set; } // sent as the Date header
+        public bool Unreachable { get; set; }          // the network is down
+        public object? AfterEnd { get; set; }          // what heartbeats return once a session was ended
+        public string LastEndBody { get; private set; } = "";
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+            if (Unreachable) throw new HttpRequestException("No route to host");
             Calls.Add(path);
+            if (path == "api/kiosk/session/end")
+            {
+                LastEndBody = request.Content!.ReadAsStringAsync(ct).Result;
+                if (AfterEnd is not null) { Next = AfterEnd; AfterEnd = null; }
+                return Task.FromResult(Respond(HttpStatusCode.OK, new { id = 7, computerId = 1, userName = "Maria Santos", purpose = "x", startedAt = DateTime.UtcNow, endedAt = DateTime.UtcNow }));
+            }
 
             if (Fail is { } fail && path != "api/kiosk/heartbeat")
                 return Task.FromResult(Respond(fail.Status, new { message = fail.Message }));

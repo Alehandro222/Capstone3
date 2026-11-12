@@ -107,6 +107,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `session.end`, `session.extend`
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
 - `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
+- `retention.visits_deleted`: visits (and their sessions) deleted after the 1-year retention period, with counts
 - `report.export`: a report download (format, table, dates, and whether it had names)
 
 ## Settings (`appsettings.json`, section `Tracker`)
@@ -124,6 +125,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `240` |
 | `WaitlistOfferMinutes` | A freed PC is held this long for the first person waiting | `5` |
 | `CleanupIntervalSeconds` | How often passes expire and overdue sessions end | `15` |
+| `KeepVisitsDays` | Data retention (DTC: 1 year). A visit is deleted this many days after it was logged, with its PC sessions, passes, waitlist places and answers. `0` = never. | `365` |
 | `TimeZone` | The center's time zone: reports count days and hours of the day in it, and exports show times in it. Stored times stay UTC. Falls back to a fixed UTC+8 if Windows can't find it. | `Asia/Manila` |
 
 ### Rate limits (section `RateLimits`)
@@ -137,7 +139,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `WaitlistJoinsPer10Minutes` | Waitlist joins per device | `5` |
 | `PairingPerMinute` | Kiosk pairing attempts per device | `10` |
 
-Limits count per IP address. If the API is ever put behind a reverse proxy, every request would share the proxy's address, so forwarded headers must be set up first.
+Limits count per IP address. Phones reach the API through the website's server, so every request arrives from this PC; the website's server passes each phone's real address in `X-Forwarded-For`, and the API uses it **only when the request comes from this same machine** (so a phone can't fake its address). The audit log records the same address. A proxy on another machine (for example a hosting service) must be added to `ForwardedHeadersOptions.KnownProxies` in `Program.cs`.
 
 The 20-minute idle logout is set in the kiosk app (`idleTimeoutSeconds` in `kiosk.settings.json`), because only the PC knows when its keyboard and mouse were last used.
 
@@ -214,6 +216,10 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | POST | `/api/staff/{id}/password` | admin | Set a new password |
 | POST | `/api/staff/{id}/unlock` | admin | Clear a lockout |
 | GET | `/api/audit` | admin | Search the audit log (`?staffId=&action=pass.&targetType=&targetId=&from=&to=&limit=`) |
+
+## Data retention
+
+DTC keeps visit records for **1 year**. The cleanup job deletes every visit older than `KeepVisitsDays` (365), together with everything that belongs to it: its PC sessions, passes, waitlist places and sector/service answers. (A visit whose session is somehow still running is left until it ends.) Reports for dates older than a year therefore come out empty: download the year's reports before then. Each run is in the audit log as `retention.visits_deleted`, with counts only; older audit entries keep record numbers, never names. Database backups (phase 8) must follow the same rule: don't keep backups longer than a year.
 
 ## Reports
 

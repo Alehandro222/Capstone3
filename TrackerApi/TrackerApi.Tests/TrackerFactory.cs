@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Builder;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,11 +27,15 @@ public class TrackerFactory : WebApplicationFactory<Program>
 
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly bool _rateLimits;
+    private readonly System.Net.IPAddress? _remoteIp;
     private readonly Dictionary<int, HttpClient> _kiosks = new();
 
-    public TrackerFactory(bool rateLimits = false)
+    // remoteIp: where requests appear to come from (the in-memory server has no real
+    // network). 127.0.0.1 = the website's server on the same PC, forwarding for phones.
+    public TrackerFactory(bool rateLimits = false, System.Net.IPAddress? remoteIp = null)
     {
         _rateLimits = rateLimits;
+        _remoteIp = remoteIp;
     }
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 7, 1, 0, 0, TimeSpan.Zero));
@@ -53,6 +58,9 @@ public class TrackerFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
+
+            if (_remoteIp is not null)
+                services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter>(new RemoteIpFilter(_remoteIp));
         });
     }
 
@@ -128,6 +136,24 @@ public class TrackerFactory : WebApplicationFactory<Program>
 }
 
 // Small helpers so the tests read like the real flow.
+// Runs before the API's own pipeline: sets the address the request "came from".
+public sealed class RemoteIpFilter : Microsoft.AspNetCore.Hosting.IStartupFilter
+{
+    private readonly System.Net.IPAddress _ip;
+    public RemoteIpFilter(System.Net.IPAddress ip) => _ip = ip;
+
+    public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) =>
+        app =>
+        {
+            app.Use((ctx, nextMiddleware) =>
+            {
+                ctx.Connection.RemoteIpAddress = _ip;
+                return nextMiddleware(ctx);
+            });
+            next(app);
+        };
+}
+
 public static class ApiExtensions
 {
     public static async Task<T> GetJson<T>(this HttpClient client, string url)
