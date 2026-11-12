@@ -108,6 +108,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
 - `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
 - `retention.visits_deleted`: visits (and their sessions) deleted after the 1-year retention period, with counts
+- `report.assistant`: a report draft asked of Gemini (dates and model; counts only were sent)
 - `report.export`: a report download (format, table, dates, and whether it had names)
 
 ## Settings (`appsettings.json`, section `Tracker`)
@@ -185,6 +186,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
 | GET | `/api/waitlist` | Everyone waiting, in order |
 | GET | `/api/reports/summary` | Counts for a range of days (`?from=2026-11-01&to=2026-11-30`, both included, days in `TimeZone`; default today; at most 366 days): see Reports |
+| GET / POST | `/api/reports/assistant` | **Admin.** GET: is the Gemini assistant set up, and which model. POST `{ from, to }`: a draft of the period's report written by Gemini, plus exactly what was sent (see Report assistant) |
 | GET | `/api/reports/export` | Download: `?format=xlsx` (summary and days), `&names=true` adds the visitor and session lists (**admin**); `?format=csv&table=summary\|days\|visits\|sessions` (visits/sessions: **admin**) |
 | GET / POST | `/api/assist` | Help requests (`?status=Open`) / create one `{ computerId, message }` (500 characters max) |
 | PUT | `/api/assist/{id}/status` | `{ status }`: Open, InProgress or Resolved |
@@ -235,7 +237,30 @@ Sessions count on the day they **started**. A running session counts until now, 
 
 **Exports** (`/api/reports/export`): any staff member can download the counts (Excel with *Summary* and *By day* sheets, or CSV). The **lists with names** (Excel *Visits* and *PC sessions* sheets, or the `visits` / `sessions` CSV) are **admin only** (Data Privacy Act: least access). Every download is recorded in the audit log as `report.export`, with "with names" when it held any. CSVs are UTF-8 with a BOM, so Excel shows "ñ" correctly, and a cell that starts with `=`, `+`, `-` or `@` gets a leading `'`, so a name typed as a formula stays text. Times in exports are Philippine time.
 
-The phase 7 Gemini assistant should use the **summary** only: it has no names or individual records.
+## Report assistant (Gemini)
+
+Admins can have **Google Gemini** draft the report for a period (Reports tab → *Report draft by Gemini*). DTC's partner asked for Gemini on the free tier, and Google may use what its free tier receives, so:
+
+- **Only the summary's counts are sent**: totals, per day, per hour, age group, sex, sector, services, how visitors registered, how sessions ended, hours per PC, the waitlist. There are no names, no individual visits or sessions, and no box where staff type free text that could hold a name.
+- The page shows **exactly what was sent** next to the draft, and every request is recorded in the audit log as `report.assistant`.
+- The draft is a starting point: staff check the numbers and edit it before sending it on.
+
+**Set it up:** create a free API key in [Google AI Studio](https://aistudio.google.com/apikey), then give it to the API, never in a committed file:
+
+```bash
+# while developing (stored outside the repo, in your Windows user profile)
+dotnet user-secrets set "Gemini:ApiKey" "<your key>"
+```
+
+On a server, set the environment variable `Gemini__ApiKey` instead (on Render: *Environment* → add `Gemini__ApiKey`).
+
+| Setting (section `Gemini`) | Meaning | Default |
+|---|---|---|
+| `ApiKey` | The Google AI Studio key. Empty = the assistant is switched off and says how to set it up. | empty |
+| `Model` | Which Gemini model writes the draft. Free-tier models and their limits change; check AI Studio. | `gemini-2.5-flash` |
+| `TimeoutSeconds` | How long to wait for Gemini | `90` |
+
+Free-tier limits are per Google project and change often (Google calls them "best effort"); a monthly report needs only a few requests. Over the limit, the page says "Gemini's free limit was reached" and nothing else happens.
 
 ## Database rules
 

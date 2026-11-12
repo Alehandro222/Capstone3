@@ -200,6 +200,15 @@ public record ReportDto(
     List<ReportComputerDto> ByComputer,
     ReportWaitlistDto Waitlist);
 
+// ---- Report assistant (Gemini) ----
+
+public record AssistantRequest(DateOnly? From, DateOnly? To);
+
+// SentToGemini: exactly the counts that were sent (shown to staff next to the draft).
+public record AssistantDraftDto(DateOnly From, DateOnly To, string Model, string Draft, string SentToGemini);
+
+public record AssistantStatusDto(bool Configured, string Model);
+
 // ---- Kiosk app ----
 
 // Shown once to an admin: staff type the code into the PC's setup screen.

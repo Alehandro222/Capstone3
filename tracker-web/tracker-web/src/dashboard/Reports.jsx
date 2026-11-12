@@ -4,6 +4,7 @@ import { AGE_GROUPS, SECTORS, SERVICES, SEXES } from '../registration.js'
 import { todayInManila } from '../time.js'
 import { END_REASON_LABEL, SOURCE_LABEL } from './format.js'
 import { PERIODS, dayLabel, hourLabel, monthStart, periodRange } from './periods.js'
+import ReportAssistant from './ReportAssistant.jsx'
 import { Empty } from './ui.jsx'
 
 const label = (options) => Object.fromEntries(options.map((o) => [o.value, o.label]))
@@ -163,6 +164,8 @@ export default function Reports({ isAdmin, refreshKey }) {
               </div>
             </>
           )}
+
+          {isAdmin && <ReportAssistant from={r.from} to={r.to} />}
 
           <section className="panel">
             <h3>Download</h3>

@@ -25,8 +25,8 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 4. ~~Staff dashboard rebuild: QR/code check-in, walk-ins, live board, end/extend, problem reports + per-PC history, waitlist, visitor log, staff accounts, audit log, pairing codes; old `PUT /api/computers/{id}/status` removed~~ (done)
 5. ~~Kiosk app polish: Reserved countdown, time-left warning, extend button, lock-screen QR (`#/visit?pc=<id>`), staff PIN hashed + lockout, "time is up" farewell, `KioskApp.Tests`~~ (done)
 6. ~~Reports: `GET /api/reports/summary` (counts by Manila day/hour, age, sex, sector, service, source, end reason, hours per PC, waitlist) + Excel (ClosedXML) / CSV export; names only for admins, audited~~ (done)
-7. **Gemini monthly-report assistant** (next) (partner wants Gemini, free tier): send **only aggregated counts**, never names or individual records (free-tier data may be used by Google)
-8. Deployment: HTTPS, Production settings (`RequireHeartbeat: true`, no Swagger), backups, data retention
+7. ~~Gemini report assistant: `POST /api/reports/assistant` (admin) sends only the summary's counts (`ReportAssistant.Facts`), no free text; draft + what was sent shown on the Reports tab; key via user-secrets / `Gemini__ApiKey`~~ (done)
+8. **Deployment** (next): HTTPS, Production settings (`RequireHeartbeat: true`, no Swagger), backups, data retention
 
 ## Decisions already made (don't re-ask)
 
@@ -46,13 +46,13 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 - **Hosting for testing (decided, phase 8):** website on Netlify, the ASP.NET API on Render (free tier), database on Supabase PostgreSQL (switch EF Core from SQLite to Npgsql, new migrations). Mind: Render free sleeps after 15 min idle (kiosk heartbeats keep it awake but use most of the 750 free hours), Supabase free pauses after a week idle, kiosks/help desk need internet, Render's proxy must be trusted for X-Forwarded-For, and DICT-CAR may need to approve visitor data in the cloud. Real deployment may still be a PC at DTC.
 - **Kiosk lockdown at DTC:** user plans auto-sign-in + start-up app; explain the gaps (Task Manager, Win key, closing the app) and settle the Windows setup in phase 8.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-6 are merged into `master` and pushed (`Alehandro222/Capstone3`). Pre-trial fixes are on branch `trial-fixes`. Ask before merging into `master` or pushing a new branch.
+- Phases 1-6 and the pre-trial fixes are merged into `master` and pushed (`Alehandro222/Capstone3`). Phase 7 is on branch `phase-7-gemini`. Ask before merging into `master` or pushing a new branch.
 
 ## Working notes
 
 - Errors from the API are always `{ "message": "..." }`; services throw `TrackerException`.
 - Enums are stored and sent as text. All times are UTC from the injected `TimeProvider` (tests use a fake clock). Pages show Philippine time (`Asia/Manila`, UTC+8, no DST; `tracker-web/src/time.js`); reports in phase 6 must group by Manila days too. Countdowns (web and kiosk) use the server's clock from the HTTP `Date` header.
-- Reports: only aggregated counts leave the summary endpoint; lists with names are admin-only exports, audited as `report.export`. Phase 7 (Gemini) must use the summary only.
+- Reports: only aggregated counts leave the summary endpoint; lists with names are admin-only exports, audited as `report.export`. The Gemini assistant sends only `ReportAssistant.Facts(summary)`; never add free text, names or records to it (AssistantTests check no names are sent).
 - Phones reach the API through the website's server: it sends `X-Forwarded-For` (Vite `xfwd`), and the API trusts it only from loopback. Any new hosting proxy must be added to `KnownProxies`, or all visitors share one rate limit.
 - The kiosk locks by itself when the tracker is unreachable (log out, idle, out of time + 30 s) and reports the reason later.
 - Help desk uses a keyboard-mode (HID) QR scanner; one help-desk unit. Don't show pass codes or tokens on staff screens: the visitor shows their own pass.
