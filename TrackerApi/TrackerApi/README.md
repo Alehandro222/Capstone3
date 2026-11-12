@@ -107,7 +107,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `session.end`, `session.extend`
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
 - `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
-- `retention.names_removed`: the yearly removal of visitors' names (how many visits)
+- `retention.visits_deleted`: visits (and their sessions) deleted after the 1-year retention period, with counts
 - `report.export`: a report download (format, table, dates, and whether it had names)
 
 ## Settings (`appsettings.json`, section `Tracker`)
@@ -125,7 +125,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `240` |
 | `WaitlistOfferMinutes` | A freed PC is held this long for the first person waiting | `5` |
 | `CleanupIntervalSeconds` | How often passes expire and overdue sessions end | `15` |
-| `KeepVisitorNamesDays` | Data retention (DTC: 1 year). Visitors' first and last names are removed this many days after the visit; the rest stays without a name so reports still add up. `0` = never. | `365` |
+| `KeepVisitsDays` | Data retention (DTC: 1 year). A visit is deleted this many days after it was logged, with its PC sessions, passes, waitlist places and answers. `0` = never. | `365` |
 | `TimeZone` | The center's time zone: reports count days and hours of the day in it, and exports show times in it. Stored times stay UTC. Falls back to a fixed UTC+8 if Windows can't find it. | `Asia/Manila` |
 
 ### Rate limits (section `RateLimits`)
@@ -219,7 +219,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 
 ## Data retention
 
-DTC keeps visitors' names for **1 year**. The cleanup job blanks the first and last name of every visit older than `KeepVisitorNamesDays` (365) and sets `NamesRemovedAt`. Age group, sex, sectors, services and the visit's PC sessions stay, with no name, so reports for older periods still count them; screens and exports show "(name removed)". Each run is in the audit log as `retention.names_removed`. Database backups (phase 8) must follow the same rule: don't keep backups longer than a year.
+DTC keeps visit records for **1 year**. The cleanup job deletes every visit older than `KeepVisitsDays` (365), together with everything that belongs to it: its PC sessions, passes, waitlist places and sector/service answers. (A visit whose session is somehow still running is left until it ends.) Reports for dates older than a year therefore come out empty: download the year's reports before then. Each run is in the audit log as `retention.visits_deleted`, with counts only; older audit entries keep record numbers, never names. Database backups (phase 8) must follow the same rule: don't keep backups longer than a year.
 
 ## Reports
 

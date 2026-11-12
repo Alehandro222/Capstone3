@@ -5,13 +5,14 @@ using TrackerApi.Models;
 
 namespace TrackerApi.Services;
 
-// Data retention: DTC keeps visitors' names for 1 year. The cleanup job calls this; it
-// blanks the first and last name of every visit older than that. Everything else about
-// the visit (age group, sex, sectors, services, its PC sessions) stays, with no name,
-// so reports still count it. Each run is recorded in the audit log.
+// Data retention: DTC keeps visit records for 1 year (Tracker:KeepVisitsDays). The cleanup
+// job calls this; it deletes every visit older than that, together with everything that
+// belongs to it: its PC sessions, passes, waitlist places, and sector/service answers.
+// Reports for those dates then come out empty. Each run is recorded in the audit log
+// (counts only); older audit entries keep only record numbers, never names.
 public class RetentionService
 {
-    private const int BatchSize = 500; // a long-closed backlog is cleared over a few runs
+    private const int BatchSize = 500; // a large backlog is cleared over a few runs
 
     private readonly TrackerDbContext _db;
     private readonly TimeProvider _clock;
@@ -26,30 +27,33 @@ public class RetentionService
         _audit = audit;
     }
 
-    // Returns how many visits had their names removed.
-    public async Task<int> RemoveOldNamesAsync()
+    // Returns how many visits were deleted.
+    public async Task<int> DeleteOldVisitsAsync()
     {
-        if (_options.KeepVisitorNamesDays <= 0) return 0;
+        if (_options.KeepVisitsDays <= 0) return 0;
 
-        var now = _clock.UtcNow();
-        var cutoff = now.AddDays(-_options.KeepVisitorNamesDays);
-        var old = await _db.Visits
-            .Where(v => v.NamesRemovedAt == null && v.CreatedAt < cutoff)
+        var cutoff = _clock.UtcNow().AddDays(-_options.KeepVisitsDays);
+        var ids = await _db.Visits
+            .Where(v => v.CreatedAt < cutoff)
+            .Where(v => !v.Sessions.Any(s => s.EndedAt == null)) // never pull a running session out from under a PC
             .OrderBy(v => v.CreatedAt)
+            .Select(v => v.Id)
             .Take(BatchSize)
             .ToListAsync();
-        if (old.Count == 0) return 0;
+        if (ids.Count == 0) return 0;
 
-        foreach (var visit in old)
-        {
-            visit.FirstName = string.Empty;
-            visit.LastName = string.Empty;
-            visit.NamesRemovedAt = now;
-        }
-        await _db.SaveChangesAsync();
+        // Children first (the database refuses to leave them without their visit). All or nothing.
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        var sessions = await _db.Sessions.Where(s => ids.Contains(s.VisitId)).ExecuteDeleteAsync();
+        await _db.Passes.Where(p => ids.Contains(p.VisitId)).ExecuteDeleteAsync();
+        await _db.WaitlistEntries.Where(w => ids.Contains(w.VisitId)).ExecuteDeleteAsync();
+        await _db.VisitSectors.Where(s => ids.Contains(s.VisitId)).ExecuteDeleteAsync();
+        await _db.VisitServices.Where(s => ids.Contains(s.VisitId)).ExecuteDeleteAsync();
+        await _db.Visits.Where(v => ids.Contains(v.Id)).ExecuteDeleteAsync();
+        await tx.CommitAsync();
 
-        await _audit.RecordAsAsync(ActorType.System, null, "Data retention", "retention.names_removed", "Visit", null,
-            $"{old.Count} visits from before {cutoff:yyyy-MM-dd} (kept {_options.KeepVisitorNamesDays} days)");
-        return old.Count;
+        await _audit.RecordAsAsync(ActorType.System, null, "Data retention", "retention.visits_deleted", "Visit", null,
+            $"{ids.Count} visits and {sessions} PC sessions from before {cutoff:yyyy-MM-dd} (kept {_options.KeepVisitsDays} days)");
+        return ids.Count;
     }
 }

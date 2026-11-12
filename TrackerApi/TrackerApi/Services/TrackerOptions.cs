@@ -43,8 +43,8 @@ public class TrackerOptions
     // exports show times in it. Stored times stay UTC. (Philippines: UTC+8, no DST.)
     public string TimeZone { get; set; } = "Asia/Manila";
 
-    // Data retention (DTC: 1 year). Visitors' first and last names are removed this many days
-    // after the visit; age group, sex, sectors, services and PC use stay, without a name,
-    // so reports for older periods still add up. 0 = never remove.
-    public int KeepVisitorNamesDays { get; set; } = 365;
+    // Data retention (DTC: 1 year). A visit is deleted this many days after it was logged,
+    // with everything that belongs to it (its PC sessions, passes, waitlist places, answers).
+    // Reports for periods older than this come out empty. 0 = never delete.
+    public int KeepVisitsDays { get; set; } = 365;
 }

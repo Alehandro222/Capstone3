@@ -38,12 +38,12 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 - **Waitlist is first come, first served:** a freed PC is held 5 minutes for whoever waited longest; missed turn → next person. Entries last 4 hours.
 - **Each PC has its own kiosk key** from a one-time pairing code (admin creates it); a kiosk can only see/act on its own PC.
 - **Staff end sessions only with reason "Staff".** PC status is computed, never stored.
-- **Data retention (DTC): visitor names kept 1 year**, then removed by the cleanup job (`KeepVisitorNamesDays`); anonymous answers stay for reports. If DTC later wants whole records deleted, change `RetentionService`.
+- **Data retention (DTC): visit records kept 1 year**, then the whole record is deleted by the cleanup job (`KeepVisitsDays`, `RetentionService`): visit, sessions, passes, waitlist places, answers. DTC builds up its data within the year; reports older than a year come out empty.
 - Phone app styling comes from the Figma Make file "LibPC Mobile Web App" (all CSS classes `v-`).
 
 ## Still open (ask the user when relevant)
 
-- **Hosting:** user wants free services (Netlify for the website, Supabase mentioned for the backend) while testing. Not decided how the ASP.NET API + SQLite fit (see the phase 8 discussion); kiosks and the help desk would then need internet.
+- **Hosting for testing (decided, phase 8):** website on Netlify, the ASP.NET API on Render (free tier), database on Supabase PostgreSQL (switch EF Core from SQLite to Npgsql, new migrations). Mind: Render free sleeps after 15 min idle (kiosk heartbeats keep it awake but use most of the 750 free hours), Supabase free pauses after a week idle, kiosks/help desk need internet, Render's proxy must be trusted for X-Forwarded-For, and DICT-CAR may need to approve visitor data in the cloud. Real deployment may still be a PC at DTC.
 - **Kiosk lockdown at DTC:** user plans auto-sign-in + start-up app; explain the gaps (Task Manager, Win key, closing the app) and settle the Windows setup in phase 8.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
 - Phases 1-6 are merged into `master` and pushed (`Alehandro222/Capstone3`). Pre-trial fixes are on branch `trial-fixes`. Ask before merging into `master` or pushing a new branch.

@@ -62,7 +62,7 @@ export default function VisitorLog({ refreshKey }) {
                 <tr key={v.id}>
                   <td>{clock(v.createdAt)}</td>
                   <td>
-                    {v.firstName || v.lastName ? `${v.firstName} ${v.lastName}` : <span className="muted">Name removed (kept 1 year)</span>}
+                    {v.firstName} {v.lastName}
                   </td>
                   <td>{ageLabel(v.ageGroup)}</td>
                   <td>{sexLabel(v.sex)}</td>
