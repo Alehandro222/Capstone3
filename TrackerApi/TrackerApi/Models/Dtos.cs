@@ -27,7 +27,8 @@ public record ComputerDto(
     DateTime? LastHeartbeatAt,
     int? ActiveSessionId,
     DateTime? SessionEndsAt,
-    string? OpenProblem);
+    string? OpenProblem,
+    DateTime? PairedAt); // when its kiosk app was paired; null = not paired
 
 // Public view of a computer for visitors' phones: no names, nothing personal.
 public record PublicComputerDto(int Id, string Name, ComputerStatus Status);
@@ -161,6 +162,44 @@ public record AssistDto(
     DateTime CreatedAt,
     DateTime? ResolvedAt);
 
+// ---- Reports (aggregated counts only; see ReportService) ----
+
+public record CountDto(string Key, int Count);
+
+// One day (in the center's time zone).
+public record ReportDayDto(DateOnly Day, int Visits, int Sessions, double SessionHours);
+
+public record ReportComputerDto(int ComputerId, string Name, int Sessions, double Hours);
+
+public record ReportWaitlistDto(int Joined, int GotAComputer, int MissedTurn, int Expired, int Left);
+
+// Everything the Reports page shows for a range of days. Counts only: no names.
+//   VisitsByHour / SessionsByHour: 24 entries, "0".."23" = hour of the day the visit / session started.
+//   Breakdowns list every possible answer (also those with 0) in the form's order.
+//   A visit can tick several sectors and services, so those add up to more than Visits.
+public record ReportDto(
+    DateOnly From,
+    DateOnly To,
+    string TimeZone,
+    int Visits,
+    int VisitsWithComputer,
+    int Sessions,
+    int RunningSessions,
+    double SessionHours,
+    double AverageSessionMinutes,
+    int Extensions,
+    List<ReportDayDto> ByDay,
+    List<CountDto> VisitsByHour,
+    List<CountDto> SessionsByHour,
+    List<CountDto> ByAgeGroup,
+    List<CountDto> BySex,
+    List<CountDto> BySector,
+    List<CountDto> ByService,
+    List<CountDto> BySource,
+    List<CountDto> SessionEndReasons,
+    List<ReportComputerDto> ByComputer,
+    ReportWaitlistDto Waitlist);
+
 // ---- Kiosk app ----
 
 // Shown once to an admin: staff type the code into the PC's setup screen.
@@ -170,7 +209,8 @@ public record PairingCodeDto(int ComputerId, string ComputerName, string Code, D
 public record KioskPairedDto(int ComputerId, string ComputerName, string KioskKey);
 
 // What the kiosk app needs to draw its screens: its own PC, and its own session if any.
-public record KioskStateDto(ComputerDto Computer, SessionDto? Session);
+// ReservedUntil: while a visitor holds an unscanned pass for this PC, when that pass expires.
+public record KioskStateDto(ComputerDto Computer, SessionDto? Session, DateTime? ReservedUntil = null);
 
 // ======================= Requests =======================
 
@@ -206,7 +246,6 @@ public record CheckInRequest(string? Token, string? Code);
 public record EndSessionRequest(SessionEndReason? Reason);
 
 public record CreateComputerRequest(string Name);
-public record UpdateComputerStatusRequest(ComputerStatus Status);
 
 public record CreateProblemRequest(int ComputerId, string? Description);
 public record ResolveProblemRequest(string? Notes);

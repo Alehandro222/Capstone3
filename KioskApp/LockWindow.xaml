@@ -42,7 +42,7 @@
                 BorderThickness="1"
                 CornerRadius="16"
                 Padding="32"
-                MinWidth="560" MaxWidth="700"
+                MinWidth="560" MaxWidth="900"
                 HorizontalAlignment="Center" VerticalAlignment="Center">
             <Grid>
 
@@ -54,22 +54,47 @@
                 </StackPanel>
 
                 <!-- Available: how visitors get this PC (they register on their phone) -->
-                <StackPanel x:Name="LoginPanel" Visibility="Collapsed">
-                    <TextBlock Text="Welcome" FontSize="34" FontWeight="Bold"/>
-                    <TextBlock x:Name="LoginIntro" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,20" TextWrapping="Wrap"/>
-                    <TextBlock FontSize="18" TextWrapping="Wrap" LineHeight="28">
-                        1. Scan the QR code at the entrance and fill in the registration form.<LineBreak/>
-                        2. Pick this computer on your phone.<LineBreak/>
-                        3. Show your QR pass at the help desk. This computer unlocks when staff scan it.
-                    </TextBlock>
-                    <TextBlock Text="No phone? Ask the staff at the help desk to register you."
-                               FontSize="16" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+                <Grid x:Name="LoginPanel" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" MaxWidth="560">
+                        <TextBlock Text="Welcome" FontSize="34" FontWeight="Bold"/>
+                        <TextBlock x:Name="LoginIntro" FontSize="20" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,20" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="LoginSteps" FontSize="18" TextWrapping="Wrap" LineHeight="28"/>
+                        <TextBlock Text="No phone? Ask the staff at the help desk to register you."
+                                   FontSize="16" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,16,0,0"/>
 
-                    <TextBlock x:Name="LoginError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-                    <TextBlock x:Name="LoginNotice" Visibility="Collapsed" Foreground="{StaticResource OkBrush}"
-                               TextWrapping="Wrap" Margin="0,4,0,0"/>
-                    <Button x:Name="LoginHelpButton" Content="Need help?" Style="{StaticResource BaseButton}"
-                            Margin="0,16,0,0" Click="LoginHelp_Click"/>
+                        <TextBlock x:Name="LoginError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="LoginNotice" Visibility="Collapsed" Foreground="{StaticResource OkBrush}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <Button x:Name="LoginHelpButton" Content="Need help?" Style="{StaticResource BaseButton}"
+                                HorizontalAlignment="Left" Margin="0,16,0,0" Click="LoginHelp_Click"/>
+                    </StackPanel>
+
+                    <!-- QR code: opens the phone app with this PC already chosen (only when visitorUrl is set) -->
+                    <Border x:Name="QrBox" Grid.Column="1" Visibility="Collapsed" Margin="28,0,0,0" VerticalAlignment="Center"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <StackPanel>
+                            <Image x:Name="QrImage" Width="220" Height="220" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                            <TextBlock x:Name="QrCaption" FontSize="15" FontWeight="SemiBold" TextAlignment="Center"
+                                       TextWrapping="Wrap" MaxWidth="220" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Reserved: a visitor picked this PC and is on the way to the help desk -->
+                <StackPanel x:Name="ReservedPanel" Visibility="Collapsed" Margin="0,16">
+                    <TextBlock Text="Reserved" FontSize="34" FontWeight="Bold" TextAlignment="Center"/>
+                    <TextBlock FontSize="20" Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,12,0,0"
+                               Text="Someone picked this computer on their phone. It unlocks when staff scan their QR pass at the help desk."/>
+                    <TextBlock x:Name="ReservedCountdown" FontFamily="Consolas" FontSize="44" FontWeight="Bold"
+                               TextAlignment="Center" Margin="0,20,0,0"/>
+                    <TextBlock x:Name="ReservedCountdownLabel" FontSize="16" Foreground="{StaticResource MutedBrush}" TextAlignment="Center"
+                               Text="left to check in. If nobody does, this computer becomes free again."/>
+                    <TextBlock FontSize="16" Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,20,0,0"
+                               Text="Is this your reservation? Show your QR pass at the help desk. Otherwise, please pick another computer."/>
                 </StackPanel>
 
                 <!-- Staff only (from the staff menu): register a visitor right here, e.g. one whose phone died -->
@@ -182,9 +207,31 @@
                     <TextBlock Text="Staff menu" FontSize="30" FontWeight="Bold" Margin="0,0,0,16"/>
                     <Button Content="Register a visitor on this computer" Style="{StaticResource PrimaryButton}" Click="RegisterVisitor_Click" Margin="0,0,0,12"/>
                     <TextBlock x:Name="StaffMenuError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <Button Content="Change the staff PIN" Style="{StaticResource BaseButton}" Click="ChangePin_Click" Margin="0,0,0,12"/>
                     <Button Content="Unpair this computer" Style="{StaticResource BaseButton}" Click="ChangeComputer_Click" Margin="0,0,0,12"/>
                     <Button Content="Exit the kiosk" Style="{StaticResource DangerButton}" Click="ExitKiosk_Click" Margin="0,0,0,12"/>
                     <Button Content="Back" Style="{StaticResource BaseButton}" Click="StaffCancel_Click"/>
+                </StackPanel>
+
+                <!-- Staff menu: change the staff PIN (saved as a hash) -->
+                <StackPanel x:Name="ChangePinPanel" Visibility="Collapsed">
+                    <TextBlock Text="Change the staff PIN" FontSize="30" FontWeight="Bold"/>
+                    <TextBlock Text="At least 6 characters (longer is safer). It is saved only as a hash in kiosk.settings.json."
+                               FontSize="16" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16"/>
+                    <TextBlock Text="New PIN" FontWeight="Medium" Margin="0,0,0,4"/>
+                    <PasswordBox x:Name="NewPinBox"/>
+                    <TextBlock Text="New PIN again" FontWeight="Medium" Margin="0,12,0,4"/>
+                    <PasswordBox x:Name="NewPinAgainBox" KeyDown="NewPinAgainBox_KeyDown"/>
+                    <TextBlock x:Name="ChangePinError" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Back" Style="{StaticResource BaseButton}" Click="BackToStaffMenu_Click"/>
+                        <Button Grid.Column="2" Content="Save PIN" Style="{StaticResource PrimaryButton}" Click="SavePin_Click"/>
+                    </Grid>
                 </StackPanel>
 
             </Grid>

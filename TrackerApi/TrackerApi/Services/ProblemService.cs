@@ -63,22 +63,6 @@ public class ProblemService
         return ToDto(report);
     }
 
-    // Resolves every open report on a PC (the dashboard's "Mark as fixed").
-    public async Task ResolveAllForComputerAsync(int computerId, string notes)
-    {
-        var open = await _db.ProblemReports
-            .Where(r => r.ComputerId == computerId && r.Status == ProblemStatus.Open)
-            .ToListAsync();
-        var now = _clock.UtcNow();
-        foreach (var report in open)
-        {
-            report.Status = ProblemStatus.Resolved;
-            report.ResolvedAt = now;
-            report.ResolutionNotes = notes;
-        }
-        await _db.SaveChangesAsync();
-    }
-
     private static ProblemReportDto ToDto(ProblemReport r) => new(
         r.Id, r.ComputerId, r.Computer?.Name ?? string.Empty, r.Description, r.Status,
         r.CreatedAt, r.ResolvedAt, r.ResolutionNotes);

@@ -2,7 +2,10 @@
   "apiUrl": "http://localhost:5080/",
   "kioskMode": false,
   "staffPin": "",
+  "staffPinHash": "",
+  "visitorUrl": "",
   "idleTimeoutSeconds": 1200,
   "idleWarningSeconds": 60,
+  "timeWarningMinutes": 10,
   "refreshSeconds": 5
 }

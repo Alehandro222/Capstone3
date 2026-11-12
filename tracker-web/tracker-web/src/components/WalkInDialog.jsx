@@ -10,10 +10,15 @@ import {
   registrationProblem,
 } from '../registration.js'
 
-// Staff register a visitor at the desk (the DTC login form). With `computer`,
+// Staff register a visitor at the desk (the DTC login form). With a computer,
 // the session on that PC starts right away; without it, the visit is only logged.
-export default function WalkInDialog({ computer, onSubmit, onCancel }) {
+//   computer        the PC chosen on the board (fixed), or
+//   freeComputers   PCs to choose from in the form (the help desk's "Register and give a PC")
+//   warning         shown above the buttons (e.g. every free PC is held for the waitlist)
+export default function WalkInDialog({ computer: fixedComputer, freeComputers, warning, onSubmit, onCancel }) {
   const [form, setForm] = useState(emptyRegistration)
+  const [chosenId, setChosenId] = useState(() => freeComputers?.[0]?.id ?? '')
+  const computer = fixedComputer ?? freeComputers?.find((c) => c.id === Number(chosenId))
   const [saving, setSaving] = useState(false)
   const [tried, setTried] = useState(false)
 
@@ -37,12 +42,26 @@ export default function WalkInDialog({ computer, onSubmit, onCancel }) {
   return (
     <div className="overlay" onClick={onCancel}>
       <form className="modal modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{computer ? `Register a visitor on ${computer.name}` : 'Log a visit'}</h2>
+        <h2>{fixedComputer ? `Register a visitor on ${fixedComputer.name}` : freeComputers ? 'Register a visitor' : 'Log a visit'}</h2>
         <p className="muted small">
           {computer
             ? 'For a visitor without a phone. Their session starts as soon as you save.'
             : 'For a visitor who does not need a computer (Wi-Fi, co-working space, eGov help...).'}
         </p>
+
+        {freeComputers && (
+          <label className="field">
+            <span>Computer</span>
+            <select value={chosenId} onChange={(e) => setChosenId(e.target.value)}>
+              {freeComputers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="">No computer (log the visit only)</option>
+            </select>
+          </label>
+        )}
 
         <div className="form-row">
           <label className="field">
@@ -69,6 +88,7 @@ export default function WalkInDialog({ computer, onSubmit, onCancel }) {
           <p>{PRIVACY_CONSENT}</p>
         </details>
 
+        {warning && computer && <p className="form-warning">{warning}</p>}
         {tried && problem && <p className="form-error">{problem}</p>}
 
         <div className="modal-actions">

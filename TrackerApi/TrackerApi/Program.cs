@@ -36,6 +36,7 @@ builder.Services.AddScoped<ProblemService>();
 builder.Services.AddScoped<StaffService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<AssistService>();
+builder.Services.AddScoped<ReportService>();
 builder.Services.AddHttpContextAccessor(); // lets AuditService see who is signed in
 
 // Who may call what: staff cookies, the kiosk key, and anonymous phones (see Auth/AuthSetup.cs).

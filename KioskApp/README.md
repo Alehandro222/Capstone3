@@ -2,10 +2,11 @@
 
 The program that runs on each office computer.
 
-1. **Free:** a fullscreen screen tells visitors how to get this PC: scan the QR code at the entrance, register and pick this PC on their phone, then show the QR pass at the help desk. A **Need help?** button asks staff for help.
-2. **Reserved:** someone picked this PC and is on their way to the help desk.
-3. **In use:** when staff scan the pass, the screen hides and a small box stays in the corner (name, timer, **Need help?**, **Log out**). The visitor then uses the computer normally.
-4. **Logged out, idle for 20 minutes, or out of time:** the lock screen comes back.
+1. **Free:** a fullscreen screen tells visitors how to get this PC. With `visitorUrl` set, it shows a **QR code** that opens the phone app with this PC already chosen; otherwise visitors use the entrance QR. A **Need help?** button asks staff for help.
+2. **Reserved:** someone picked this PC on their phone. The screen counts down the time they have left to get their pass scanned (no name: it's a public screen).
+3. **In use:** when staff scan the pass, the screen hides and a small box stays in the corner: name, **time left**, **Need help?**, **Log out**. The visitor then uses the computer normally.
+4. **Last 10 minutes** (`timeWarningMinutes`): the box turns orange (red in the last minute) and asks the visitor to save their work. **Extend by 1 hour** appears when the tracker allows it (at most twice, and never while someone is waiting); otherwise the box says why not.
+5. **Logged out, idle for 20 minutes, out of time, or ended by staff / the phone:** "Thank you" for a few seconds, then the lock screen comes back.
 
 **Staff-only form on the PC:** for a visitor whose phone died, staff press **Ctrl + Shift + Q**, enter the PIN and choose **Register a visitor on this computer**. It's the same form as the phone's (name, age group, sex, sectors, services), and the session starts here straight away.
 
@@ -27,7 +28,7 @@ Everything is recorded through TrackerApi, so the staff dashboard shows the comp
 dotnet run
 ```
 
-3. The first time, a **Set up this computer** screen asks for a **pairing code**. An admin gets one for the PC (for example PC-01) from the API: sign in at http://localhost:5080/swagger, then call `POST /api/computers/1/pairing-code`. Type the code in and press **Pair this computer**. The pairing is remembered. (A dashboard button for this comes later.)
+3. The first time, a **Set up this computer** screen asks for a **pairing code**. An admin creates one in the dashboard: **Computers** → the PC's **Details** → **Create pairing code**. Type the code in and press **Pair this computer**. The pairing is remembered.
 4. To start a session without the phone app (phase 3), use the staff-only form: **Ctrl + Shift + Q**, then **Register a visitor on this computer**. (With `kioskMode` `false` and no `staffPin`, any PIN works.) Then check the dashboard at http://localhost:5173.
 
 If `dotnet run` says the target framework is not installed, open `KioskApp.csproj` and change `net8.0-windows` to your version plus `-windows`, for example `net9.0-windows`.
@@ -38,7 +39,10 @@ If `dotnet run` says the target framework is not installed, open `KioskApp.cspro
 |---|---|---|
 | `apiUrl` | Address of TrackerApi. On the office PCs this must be the server's address, not `localhost`. | `http://localhost:5080/` |
 | `kioskMode` | `false`: normal window (for testing). `true`: fullscreen, always on top, cannot be closed. | `false` |
-| `staffPin` | PIN for staff (Ctrl+Shift+Q). In kiosk mode, an empty PIN disables the shortcut. | empty |
+| `staffPin` | Type a new staff PIN here in plain text. On start the app replaces it with `staffPinHash` and removes it from the file (see Staff PIN). | empty |
+| `staffPinHash` | The staff PIN as a salted PBKDF2 hash, written by the app. Empty = no PIN: in kiosk mode the staff shortcut is then disabled. | empty |
+| `visitorUrl` | The phone app's address as phones reach it, e.g. `http://192.168.1.10:5173/#/visit`. The lock screen's QR opens it with `?pc=<this PC>`, so this PC is already chosen. Empty = no QR. | empty |
+| `timeWarningMinutes` | The session box warns during the last N minutes. | `10` |
 | `idleTimeoutSeconds` | Log out after this long with no keyboard or mouse use anywhere in Windows. `0` = never. | `1200` (20 min) |
 | `idleWarningSeconds` | Show a warning during the last N seconds. | `60` |
 | `refreshSeconds` | How often to check the tracker for changes made by staff. | `5` |
@@ -47,7 +51,19 @@ Pairing saves which PC this is in `C:\ProgramData\ComputerTracker\computer-id.tx
 
 ## Staff shortcut
 
-Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can register a visitor on this computer, unpair this computer (the setup screen shows again), or exit the kiosk.
+Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu can register a visitor on this computer, change the staff PIN, unpair this computer (the setup screen shows again), or exit the kiosk.
+
+### Staff PIN
+
+The PIN is never kept in plain text, and it needs **at least 6 characters** (a 4-digit PIN has only 10,000 values, which anyone who copies the hash could try in minutes). To set the first one, put it in `kiosk.settings.json` as `"staffPin": "482193"` and start the app: it saves only a salted hash (`staffPinHash`) and removes `staffPin` from the file. Change it later from the staff menu (**Change the staff PIN**). If the app cannot write the file (for example, it is in a folder ordinary users cannot change), the staff menu says so; run it once as an administrator, or give the kiosk's Windows account write access to that one file.
+
+After **5 wrong PINs** in a row, the PIN screen is locked for a minute.
+
+**Protect the settings file on the library PCs.** The hash still lets someone who copies the file guess the PIN offline, so visitors should not be able to read it. Run the kiosk under a Windows account visitors don't use, or remove read access for the visitors' account: right-click `kiosk.settings.json` → Properties → Security, and allow only Administrators, SYSTEM and the account the kiosk runs as. Do the same for `C:\ProgramData\ComputerTracker` (it holds this PC's key).
+
+### Clock
+
+Countdowns (time left, Reserved) use the tracker's clock: every answer from the tracker carries its time, and the kiosk corrects for its own clock being off. Times are only ever shown as durations here, so the PC's time zone does not matter. The tracker server's own clock should still be right: keep Windows time sync on.
 
 ## Deploying to the office computers
 
@@ -59,7 +75,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 ```
 
 3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
-4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, and a `staffPin`.
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, a `staffPin` of 6+ characters (hashed on first start), and `visitorUrl` for the lock-screen QR. Then restrict who can read the file (see Staff PIN).
 5. Run `ComputerTrackerKiosk.exe` once. Type the pairing code an admin created for that PC, then test.
 6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
 
@@ -87,6 +103,9 @@ KioskApp/
     KioskController.cs     decides what to show; login, logout, idle timeout, help
     ApiClient.cs           calls TrackerApi
     IdleSource.cs          asks Windows how long the keyboard and mouse have been idle
-    KioskSettings.cs       reads the settings
+    KioskSettings.cs       reads and saves the settings
+    PinHasher.cs           staff PIN hashing (PBKDF2)
+    SessionClock.cs        time left and when to warn
     Models.cs              the data shapes from the API
+KioskApp.Tests/            tests for Core/ (next to this folder): `dotnet test`
 ```

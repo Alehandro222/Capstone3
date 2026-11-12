@@ -29,11 +29,22 @@ public sealed class ApiClient : IDisposable
 
     private readonly HttpClient _http;
 
+    // How far this PC's clock is from the tracker's (from each answer's Date header).
+    // Countdowns use tracker time, so a PC whose clock is off still shows the right time left.
+    // Differences under 3 seconds are ignored (the header only has whole seconds).
+    public TimeSpan ServerClockOffset { get; private set; }
+
     // kioskKey and computerId are read on every request, because pairing changes them.
     // The API only accepts this PC's own key, and only for this PC.
     public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId)
+        : this(baseUrl, kioskKey, computerId, new HttpClientHandler())
     {
-        var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = new HttpClientHandler() };
+    }
+
+    // For the tests: "inner" stands in for the network.
+    public ApiClient(string baseUrl, Func<string> kioskKey, Func<int> computerId, HttpMessageHandler inner)
+    {
+        var handler = new KioskHeaders(kioskKey, computerId) { InnerHandler = inner };
         _http = new HttpClient(handler)
         {
             BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
@@ -57,6 +68,10 @@ public sealed class ApiClient : IDisposable
     public Task<SessionDto> EndSessionAsync(string reason, CancellationToken ct = default) =>
         PostAsync<SessionDto>("api/kiosk/session/end", new { reason }, ct);
 
+    // Adds an hour, if the tracker's rules allow it (last 10 minutes, at most twice, nobody waiting).
+    public Task<SessionDto> ExtendSessionAsync(CancellationToken ct = default) =>
+        PostAsync<SessionDto>("api/kiosk/session/extend", new { }, ct);
+
     public Task<AssistDto> CreateAssistAsync(string message, CancellationToken ct = default) =>
         PostAsync<AssistDto>("api/kiosk/help", new { message }, ct);
 
@@ -65,6 +80,11 @@ public sealed class ApiClient : IDisposable
     private async Task<T> PostAsync<T>(string path, object body, CancellationToken ct)
     {
         using var response = await _http.PostAsJsonAsync(path, body, JsonOptions, ct);
+        if (response.Headers.Date is DateTimeOffset serverTime)
+        {
+            var offset = serverTime.UtcDateTime.AddMilliseconds(500) - DateTime.UtcNow;
+            ServerClockOffset = offset.Duration() < TimeSpan.FromSeconds(3) ? TimeSpan.Zero : offset;
+        }
         await EnsureSuccessAsync(response, ct);
         return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
     }

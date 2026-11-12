@@ -442,6 +442,8 @@ public class FlowTests : IAsyncLifetime
     {
         var kiosk = await _factory.KioskAsync(1);
         await _factory.Heartbeat(1);
+        Assert.NotNull((await _staff.GetJson<ComputerDto>("/api/computers/1")).PairedAt);
+        Assert.Null((await _staff.GetJson<ComputerDto>("/api/computers/2")).PairedAt);
 
         var session = await kiosk.PostJson<SessionDto>("/api/kiosk/sessions", ApiExtensions.Registration("Maria", "Santos"));
         Assert.Equal("Maria Santos", session.UserName);
@@ -454,15 +456,41 @@ public class FlowTests : IAsyncLifetime
         (await _staff.PostAsync($"/api/sessions/{session.Id}/end", null)).EnsureSuccessStatusCode();
         Assert.Equal(SessionEndReason.Staff, (await _staff.GetJson<SessionDto>($"/api/sessions/{session.Id}")).EndReason);
 
-        // "Report broken" then "Mark as fixed".
-        (await _staff.PutAsJsonAsync("/api/computers/1/status", new { status = "Maintenance" }, TrackerFactory.Json))
-            .EnsureSuccessStatusCode();
+        // A problem report puts the PC under maintenance; resolving it frees the PC.
+        var report = await _staff.PostJson<ProblemReportDto>("/api/problems", new { computerId = 1, description = "No sound" });
         Assert.Equal(ComputerStatus.Maintenance, await _phone.StatusOf(1));
-        (await _staff.PutAsJsonAsync("/api/computers/1/status", new { status = "Available" }, TrackerFactory.Json))
-            .EnsureSuccessStatusCode();
+        var resolved = await _staff.PutAsJsonAsync($"/api/problems/{report.Id}/resolve", new { notes = "Replaced cable" }, TrackerFactory.Json);
+        resolved.EnsureSuccessStatusCode();
         Assert.Equal(ComputerStatus.Available, await _phone.StatusOf(1));
 
+        // The old "Report broken / Mark as fixed" route is gone.
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await _staff.PutAsJsonAsync("/api/computers/1/status", new { status = "Maintenance" }, TrackerFactory.Json)).StatusCode);
+
         Assert.Single(await _staff.GetJson<List<SessionDto>>("/api/computers/1/sessions"));
+    }
+
+    [Fact]
+    public async Task Kiosk_sees_when_its_reservation_runs_out_and_can_extend_its_own_session()
+    {
+        var kiosk = await _factory.KioskAsync(1);
+        await _factory.Heartbeat(1);
+        var (_, code) = await _phone.RegisterAndPick(1);
+
+        var reserved = await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Equal(ComputerStatus.Reserved, reserved.Computer.Status);
+        Assert.Equal(_factory.Clock.GetUtcNow().UtcDateTime.AddMinutes(10), reserved.ReservedUntil);
+
+        var session = await _staff.PostJson<SessionDto>("/api/passes/check-in", new { code });
+        var running = await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat");
+        Assert.Null(running.ReservedUntil);
+        Assert.False(running.Session!.CanExtend); // not in the last 10 minutes yet
+
+        Advance(TimeSpan.FromMinutes(175));
+        Assert.True((await kiosk.PostJson<KioskStateDto>("/api/kiosk/heartbeat")).Session!.CanExtend);
+        var extended = await kiosk.PostJson<SessionDto>("/api/kiosk/session/extend");
+        Assert.Equal(session.ScheduledEndAt.AddHours(1), extended.ScheduledEndAt);
+        Assert.Equal(1, extended.ExtensionCount);
     }
 
     [Fact]

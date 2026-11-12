@@ -36,7 +36,15 @@ function saveToken(token) {
   }
 }
 
+// The PC a kiosk's lock-screen QR code points to: #/visit?pc=4 -> 4 (else null).
+function pcFromAddress() {
+  const query = window.location.hash.split('?')[1] ?? ''
+  const id = Number(new URLSearchParams(query).get('pc'))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
 // The visitor phone app: http://<server>:5173/#/visit (the entrance QR code).
+// A PC's own lock screen links to #/visit?pc=4, so that PC is already chosen.
 //
 // What the phone shows comes from the visit itself (GET /api/visits/{token},
 // checked every few seconds), so it always matches what staff and the PC see:
@@ -44,7 +52,9 @@ function saveToken(token) {
 export default function VisitorApp() {
   const [token, setToken] = useState(readToken)
   const [visit, setVisit] = useState(null)
-  const [page, setPage] = useState('home') // home | register | computers | browse
+  const [wantedPc] = useState(pcFromAddress) // scanned at a PC: preselect it
+  // Already registered and scanned a PC's QR? Go straight to choosing (that PC is preselected).
+  const [page, setPage] = useState(() => (wantedPc && readToken() ? 'computers' : 'home')) // home | register | computers | browse
   const [seen, setSeen] = useState({})     // messages already dismissed (ended session, expired pass, missed turn)
   const [offline, setOffline] = useState(false)
   const [loading, setLoading] = useState(Boolean(readToken()))
@@ -97,8 +107,8 @@ export default function VisitorApp() {
     saveToken(created.token)
     setToken(created.token)
     setVisit(created.visit)
-    // Ticked "Use of ICT Equipment"? Go straight to choosing a PC.
-    setPage(form.services.includes('IctEquipment') ? 'computers' : 'home')
+    // Ticked "Use of ICT Equipment", or came from a PC's QR code? Go straight to choosing a PC.
+    setPage(wantedPc || form.services.includes('IctEquipment') ? 'computers' : 'home')
   }
 
   const update = (action) => async (...args) => {
@@ -148,6 +158,7 @@ export default function VisitorApp() {
           <ComputersScreen
             onBack={() => setPage('home')}
             onPick={pickComputer}
+            preferredId={wantedPc}
             readyUntilText={`A computer is held for you for ${formatDuration(readyLeft)}.`}
           />
         )
@@ -184,7 +195,14 @@ export default function VisitorApp() {
       )
 
     if (page === 'computers' && !expired)
-      return <ComputersScreen onBack={() => setPage('home')} onPick={pickComputer} onJoinWaitlist={joinWaitlist} />
+      return (
+        <ComputersScreen
+          onBack={() => setPage('home')}
+          onPick={pickComputer}
+          onJoinWaitlist={joinWaitlist}
+          preferredId={wantedPc}
+        />
+      )
 
     return (
       <VisitLoggedScreen

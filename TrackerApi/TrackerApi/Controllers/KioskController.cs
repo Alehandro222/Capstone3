@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using TrackerApi.Auth;
 using TrackerApi.Data;
@@ -65,7 +66,13 @@ public class KioskController : ControllerBase
         await _db.SaveChangesAsync();
 
         var view = (await _status.GetStaffViewAsync(ComputerId))[0];
-        return new KioskStateDto(view, await _sessions.GetActiveOnComputerAsync(ComputerId));
+        var now = _clock.UtcNow();
+        // While Reserved, the lock screen counts down the time left to check in (no name: it's a public screen).
+        var reservedUntil = await _db.Passes
+            .Where(p => p.ComputerId == ComputerId && p.Status == PassStatus.Pending && p.ExpiresAt > now)
+            .Select(p => (DateTime?)p.ExpiresAt)
+            .FirstOrDefaultAsync();
+        return new KioskStateDto(view, await _sessions.GetActiveOnComputerAsync(ComputerId), reservedUntil);
     }
 
     // POST api/kiosk/sessions   body: the registration form

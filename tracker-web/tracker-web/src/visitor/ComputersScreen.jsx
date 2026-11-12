@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { api } from '../api.js'
 import { Button, CheckIcon, ComputerIcon, ErrorAlert, Header, Shell } from './ui.jsx'
 import { usePolling } from './useClock.js'
@@ -13,9 +13,12 @@ const LABEL = {
 
 // Live PC availability. With onPick, visitors choose a free PC; without it
 // (from the welcome screen) the list is only for looking.
-export default function ComputersScreen({ onBack, onPick, onJoinWaitlist, readyUntilText }) {
+// preferredId: the PC whose QR code they scanned; chosen for them if it is free.
+export default function ComputersScreen({ onBack, onPick, onJoinWaitlist, readyUntilText, preferredId }) {
   const [computers, setComputers] = useState([])
   const [selected, setSelected] = useState(null)
+  const [preferredNote, setPreferredNote] = useState('')
+  const preferredDone = useRef(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const viewOnly = !onPick
@@ -26,10 +29,17 @@ export default function ComputersScreen({ onBack, onPick, onJoinWaitlist, readyU
       setComputers(list)
       // A PC someone else just took can no longer stay selected.
       setSelected((id) => (list.some((c) => c.id === id && c.status === 'Available') ? id : null))
+      // Came from a PC's QR code: choose that PC for them once, if it is still free.
+      if (!viewOnly && preferredId && !preferredDone.current) {
+        preferredDone.current = true
+        const wanted = list.find((c) => c.id === preferredId)
+        if (wanted?.status === 'Available') setSelected(wanted.id)
+        else if (wanted) setPreferredNote(`${wanted.name} is not free right now. Please pick another computer.`)
+      }
     } catch {
       setError('Cannot reach the library system. Check the Wi-Fi.')
     }
-  }, [])
+  }, [viewOnly, preferredId])
   usePolling(load, 5000)
 
   const free = computers.filter((c) => c.status === 'Available').length
@@ -81,6 +91,7 @@ export default function ComputersScreen({ onBack, onPick, onJoinWaitlist, readyU
         </div>
 
         {readyUntilText && <p className="v-alert v-alert--ok">{readyUntilText}</p>}
+        {preferredNote && <p className="v-alert v-alert--error">{preferredNote}</p>}
 
         <div>
           <h1>{viewOnly ? 'Computer availability' : 'Pick a green computer'}</h1>

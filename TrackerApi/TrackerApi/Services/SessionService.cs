@@ -104,8 +104,10 @@ public class SessionService
             .Where(s => s.EndedAt == null && s.ScheduledEndAt <= now)
             .ToListAsync();
 
+        // Recorded as ending at its time limit, not "now": if the server was off for a while,
+        // the session still only lasted until its limit (this keeps reports' PC hours right).
         foreach (var session in overdue)
-            await EndTrackedAsync(session, SessionEndReason.TimeLimit, now);
+            await EndTrackedAsync(session, SessionEndReason.TimeLimit, session.ScheduledEndAt);
 
         await _db.SaveChangesAsync();
         return overdue.Count;

@@ -38,4 +38,8 @@ public class TrackerOptions
 
     // How often the cleanup job expires passes and ends overdue sessions. 0 = off.
     public int CleanupIntervalSeconds { get; set; } = 15;
+
+    // The center's time zone. Reports count "days" and "hours of the day" in it, and
+    // exports show times in it. Stored times stay UTC. (Philippines: UTC+8, no DST.)
+    public string TimeZone { get; set; } = "Asia/Manila";
 }
