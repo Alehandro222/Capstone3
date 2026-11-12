@@ -55,7 +55,7 @@ Press **Ctrl + Shift + Q** on the login screen and enter the PIN. The staff menu
 
 ### Staff PIN
 
-The PIN is never kept in plain text, and it needs **at least 6 characters** (a 4-digit PIN has only 10,000 values, which anyone who copies the hash could try in minutes). To set the first one, put it in `kiosk.settings.json` as `"staffPin": "482193"` and start the app: it saves only a salted hash (`staffPinHash`) and removes `staffPin` from the file. Change it later from the staff menu (**Change the staff PIN**). If the app cannot write the file (for example, it is in a folder ordinary users cannot change), the staff menu says so; run it once as an administrator, or give the kiosk's Windows account write access to that one file.
+The PIN is never kept in plain text, and it needs **at least 6 characters**; use **8 or more, not only digits** (the kiosk app runs as the visitor's Windows account, so that account can read the hash, and a short PIN can be guessed offline). To set the first one, put it in `kiosk.settings.json` as `"staffPin": "<your PIN>"` and start the app: it saves only a salted hash (`staffPinHash`) and removes `staffPin` from the file. Change it later from the staff menu (**Change the staff PIN**). If the app cannot write the file (for example, it is in a folder ordinary users cannot change), the staff menu says so; run it once as an administrator, or give the kiosk's Windows account write access to that one file.
 
 After **5 wrong PINs** in a row, the PIN screen is locked for a minute.
 
@@ -75,9 +75,14 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 ```
 
 3. Copy the `publish` folder to each PC (for example `C:\ComputerTracker`).
-4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, a `staffPin` of 6+ characters (hashed on first start), and `visitorUrl` for the lock-screen QR. Then restrict who can read the file (see Staff PIN).
+4. On each PC, edit `kiosk.settings.json`: set `apiUrl` to the server's address, `kioskMode` to `true`, a `staffPin` of 8+ characters (hashed on first start), and `visitorUrl` for the lock-screen QR.
+5. Run the setup script (below) to lock the PC down for visitors.
 5. Run `ComputerTrackerKiosk.exe` once. Type the pairing code an admin created for that PC, then test.
 6. Start it automatically: press Win + R, type `shell:common startup`, and put a shortcut to the .exe in that folder.
+
+## Setting up a library PC for visitors (`setup/Setup-KioskPC.ps1`)
+
+In an administrator PowerShell window: `.\Setup-KioskPC.ps1 -WhatIf` first (it only lists what it would change), then `.\Setup-KioskPC.ps1 -KeepAwake`, and after the visitor account's first sign-in `.\Setup-KioskPC.ps1 -RestrictionsOnly`. It creates a standard visitor account, starts this app at sign-in and again within a minute if it is closed, turns off Task Manager, Lock, Run, Control Panel/Settings, the Windows-key shortcuts and the command prompt for that account, and limits who can read this app's files. Automatic sign-in uses Microsoft's Sysinternals Autologon. Details and limits: **DEPLOYMENT.md**, section C.
 
 ## Smart App Control
 
@@ -114,5 +119,6 @@ KioskApp/
     PinHasher.cs           staff PIN hashing (PBKDF2)
     SessionClock.cs        time left and when to warn
     Models.cs              the data shapes from the API
+  setup/Setup-KioskPC.ps1  prepares a library PC for visitors (run as administrator)
 KioskApp.Tests/            tests for Core/ (next to this folder): `dotnet test`
 ```

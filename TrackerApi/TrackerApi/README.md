@@ -106,9 +106,10 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 - `visit.walk_in` (at the desk), `visit.kiosk` (on the PC, by staff)
 - `session.end`, `session.extend`
 - `kiosk.pairing_code`, `kiosk.paired`, `kiosk.unpaired`
-- `problem.*`, `computer.*`, `peripheral.*`, `assist.status`
+- `problem.*`, `computer.*` (`create`, `rename`, `delete`), `peripheral.*`, `assist.status`
 - `retention.visits_deleted`: visits (and their sessions) deleted after the 1-year retention period, with counts
 - `report.assistant`: a report draft asked of Gemini (dates and model; counts only were sent)
+- `backup.created`: the daily database copy (file name and size)
 - `report.export`: a report download (format, table, dates, and whether it had names)
 
 ## Settings (`appsettings.json`, section `Tracker`)
@@ -144,6 +145,25 @@ Limits count per IP address. Phones reach the API through the website's server, 
 
 The 20-minute idle logout is set in the kiosk app (`idleTimeoutSeconds` in `kiosk.settings.json`), because only the PC knows when its keyboard and mouse were last used.
 
+## Hosting, database and backups
+
+How to deploy (a PC at DTC, or Netlify + Render + Supabase) is in **[DEPLOYMENT.md](../../DEPLOYMENT.md)**. The settings involved:
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `Database:Provider` | `Sqlite` (one file; a PC at DTC) or `Postgres` (Supabase). PostgreSQL has its own migrations in `Migrations/Postgres` (`PostgresTrackerDbContext`). | `Sqlite` |
+| `ConnectionStrings:Default` | `Data Source=tracker.db`, or the Supabase session-pooler connection string | `Data Source=tracker.db` |
+| `Hosting:TrustedProxyHops` | How many proxies add themselves to `X-Forwarded-For`. `0` = only a proxy on this machine (the Vite dev server); Netlify → Render = `2`. | `0` |
+| `Hosting:ProxySignatureSecret` | When set, every request must carry Netlify's signature (`x-nf-sign`, HMAC-SHA256 with this secret); others get **403**, except `GET /health`. | empty |
+| `Hosting:RequireHttps` | On the internet: http → https, HSTS, sign-in cookie HTTPS-only | `false` |
+| `Backup:Enabled` / `Folder` / `KeepDays` | Daily copy of the SQLite database (`VACUUM INTO`, while running) as `tracker-YYYY-MM-DD.db`; copies older than `KeepDays` are deleted, and never kept longer than `Tracker:KeepVisitsDays`. Audited as `backup.created`. SQLite only. | `true` / `backups` / `30` |
+
+**Security headers** on every answer: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy` (camera only for the site itself); `Cache-Control: no-store` on `/api`, and a strict `Content-Security-Policy` on the website when the API serves it.
+
+**The website from the API:** `npm run build:api` (in `tracker-web/tracker-web`) writes the built site to `wwwroot`; the API then serves it at `/`, so phones, staff and kiosks use one address. `index.html` is never cached; the versioned files under `/assets` are cached for a year.
+
+`GET /health` answers `{"status":"ok"}` without sign-in, for the host's health check.
+
 ## Endpoints
 
 Errors always come back as `{ "message": "..." }`, written so the frontend can show them as they are.
@@ -169,7 +189,9 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals, `pairedAt` (when its kiosk app was paired; `null` = not paired) |
 | GET | `/api/computers/{id}` | One PC, same details |
 | GET | `/api/computers/{id}/sessions` | Session history for one PC |
-| POST | `/api/computers` | Add a PC (admin) |
+| POST | `/api/computers` | Add a PC (admin). Names are unique. |
+| PUT | `/api/computers/{id}` | `{ name }`: rename a PC (admin), e.g. to match the labels on the real machines |
+| DELETE | `/api/computers/{id}` | Remove a PC that was never used (admin), e.g. a sample PC on a fresh install. Refused (409) if it has any sessions or passes; its problem reports and help requests are deleted, its peripherals unplugged. |
 | POST | `/api/computers/{id}/pairing-code` | One-time code to pair that PC's kiosk app (admin) |
 | POST | `/api/computers/{id}/unpair` | Cancel that PC's key (admin) |
 | GET | `/api/visits` | The visitor log, newest first (`?from=&to=&limit=`) |
@@ -277,11 +299,12 @@ The tables come from the classes in `Models/` and the rules in `Data/TrackerDbCo
 
 ```bash
 dotnet tool restore                          # once; installs dotnet-ef for this repo
-dotnet dotnet-ef migrations add DescribeYourChange
+dotnet dotnet-ef migrations add DescribeYourChange --context TrackerDbContext
+dotnet dotnet-ef migrations add DescribeYourChange --context PostgresTrackerDbContext --output-dir Migrations/Postgres
 dotnet run                                   # applies it on startup
 ```
 
-Commit the new files in `Migrations/`. Never edit a migration that teammates have already applied; add a new one instead.
+Every change needs **both** migrations: SQLite (`Migrations/`) and PostgreSQL (`Migrations/Postgres`). Commit the new files in both folders. Never edit a migration that teammates have already applied; add a new one instead.
 
 ## Tests
 

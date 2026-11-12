@@ -1,0 +1,10 @@
+bin/
+obj/
+wwwroot/
+backups/
+old-db-backup/
+*.db
+*.db-shm
+*.db-wal
+*.local.txt
+.vs/

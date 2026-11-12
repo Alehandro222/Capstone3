@@ -1,0 +1,45 @@
+# Netlify: the website (staff dashboard, phone app, poster), for testing. See DEPLOYMENT.md.
+# Netlify site settings: Base directory = tracker-web/tracker-web (this folder).
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"   # until @vitejs/plugin-react supports Vite 8
+
+# Every /api call goes to the API on Render through Netlify, so the browser only ever
+# talks to one address (the sign-in cookie just works, no CORS). Netlify signs each request
+# with API_SIGNATURE_TOKEN (set it in Netlify's environment variables, scope "Runtime");
+# the API refuses requests without that signature.
+# >>> Replace YOUR-RENDER-SERVICE with the Render service's name before deploying. <<<
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-RENDER-SERVICE.onrender.com/api/:splat"
+  status = 200
+  force = true
+  signed = "API_SIGNATURE_TOKEN"
+
+# Security headers for the website (the API sets its own).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000"
+
+# Versioned build files can be cached for good; index.html must always be checked,
+# so an update reaches every phone at once.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

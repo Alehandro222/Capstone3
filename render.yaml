@@ -1,0 +1,30 @@
+# Render "Blueprint" for the MISA API (free tier, for testing). See DEPLOYMENT.md.
+# Render: New -> Blueprint -> pick this repository. Values marked sync: false are asked for
+# once in Render's dashboard and never stored in the repository.
+services:
+  - type: web
+    name: misa-api
+    runtime: docker
+    plan: free
+    region: singapore            # closest Render region to Baguio
+    dockerfilePath: ./TrackerApi/TrackerApi/Dockerfile
+    dockerContext: ./TrackerApi/TrackerApi
+    healthCheckPath: /health
+    autoDeploy: false            # deploy on purpose, not on every push
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Database__Provider
+        value: Postgres
+      - key: ConnectionStrings__Default
+        sync: false              # Supabase session-pooler connection string (DEPLOYMENT.md)
+      - key: Hosting__RequireHttps
+        value: "true"
+      - key: Hosting__TrustedProxyHops
+        value: "2"               # visitor -> Netlify -> Render
+      - key: Hosting__ProxySignatureSecret
+        sync: false              # the same value as API_SIGNATURE_TOKEN on Netlify
+      - key: Backup__Enabled
+        value: "false"           # SQLite-only; Supabase holds the data
+      - key: Gemini__ApiKey
+        sync: false              # optional: the report assistant

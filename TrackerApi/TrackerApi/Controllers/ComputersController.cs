@@ -52,18 +52,68 @@ public class ComputersController : ControllerBase
     [Authorize(Policy = Policies.Admin)]
     public async Task<ActionResult<ComputerDto>> Create(CreateComputerRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw TrackerException.BadRequest("Name is required.");
-        if (request.Name.Trim().Length > 50)
-            throw TrackerException.BadRequest("Name must be 50 characters or fewer.");
+        var name = ValidName(request.Name);
+        if (await _db.Computers.AnyAsync(c => c.Name == name))
+            throw TrackerException.Conflict($"There is already a PC called {name}.");
 
-        var computer = new Computer { Name = request.Name.Trim() };
+        var computer = new Computer { Name = name };
         _db.Computers.Add(computer);
         await _db.SaveChangesAsync();
 
         await _audit.RecordAsync("computer.create", "Computer", computer.Id, computer.Name);
         var dto = (await _status.GetStaffViewAsync(computer.Id))[0];
         return CreatedAtAction(nameof(GetById), new { id = computer.Id }, dto);
+    }
+
+    // PUT api/computers/1   body: { "name": "Lab 2 - PC 05" }   (admin)
+    // Renames a PC, e.g. to match the labels on the real machines.
+    [HttpPut("{id:int}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ComputerDto> Rename(int id, RenameComputerRequest request)
+    {
+        var computer = await _db.Computers.FindAsync(id) ?? throw TrackerException.NotFound("Computer not found.");
+        var name = ValidName(request.Name);
+        if (await _db.Computers.AnyAsync(c => c.Id != id && c.Name == name))
+            throw TrackerException.Conflict($"There is already a PC called {name}.");
+
+        var old = computer.Name;
+        computer.Name = name;
+        await _db.SaveChangesAsync();
+        await _audit.RecordAsync("computer.rename", "Computer", id, $"{old} -> {name}");
+        return (await _status.GetStaffViewAsync(id))[0];
+    }
+
+    // DELETE api/computers/1   (admin)
+    // Removes a PC that was never used: e.g. the sample PCs on a fresh install. A PC with
+    // any visitor history (sessions or passes) can't be removed, so no records are lost.
+    // Its problem reports and help requests go with it; its peripherals are unplugged.
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> Remove(int id)
+    {
+        var computer = await _db.Computers.FindAsync(id) ?? throw TrackerException.NotFound("Computer not found.");
+        if (await _db.Sessions.AnyAsync(s => s.ComputerId == id) || await _db.Passes.AnyAsync(p => p.ComputerId == id))
+            throw TrackerException.Conflict($"{computer.Name} has visitor history, so it can't be removed. Rename it instead.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        await _db.ProblemReports.Where(r => r.ComputerId == id).ExecuteDeleteAsync();
+        await _db.AssistTickets.Where(t => t.ComputerId == id).ExecuteDeleteAsync();
+        await _db.Peripherals.Where(p => p.ComputerId == id)
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.ComputerId, (int?)null).SetProperty(p => p.IsInUse, false));
+        _db.Computers.Remove(computer);
+        await _db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        await _audit.RecordAsync("computer.delete", "Computer", id, computer.Name);
+        return NoContent();
+    }
+
+    private static string ValidName(string? name)
+    {
+        name = name?.Trim();
+        if (string.IsNullOrEmpty(name)) throw TrackerException.BadRequest("Name is required.");
+        if (name.Length > 50) throw TrackerException.BadRequest("Name must be 50 characters or fewer.");
+        return name;
     }
 
     // POST api/computers/1/pairing-code   (admin)

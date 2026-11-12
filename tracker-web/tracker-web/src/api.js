@@ -102,6 +102,8 @@ export const api = {
   unlockStaff: (staffId) => send('POST', `/api/staff/${staffId}/unlock`),
   getAudit: (params) => request(`/api/audit${query(params)}`),
   addComputer: (name) => send('POST', '/api/computers', { name }),
+  renameComputer: (computerId, name) => send('PUT', `/api/computers/${computerId}`, { name }),
+  removeComputer: (computerId) => send('DELETE', `/api/computers/${computerId}`),
   createPairingCode: (computerId) => send('POST', `/api/computers/${computerId}/pairing-code`),
   unpairComputer: (computerId) => send('POST', `/api/computers/${computerId}/unpair`),
 }

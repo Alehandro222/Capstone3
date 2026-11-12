@@ -55,7 +55,7 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 | Tab | What staff do there |
 |---|---|
 | **Help desk** | **Check visitors in**: scan the QR pass with the desk's QR scanner, or type the 6-digit code. (**Scan QR with camera** also works on `localhost` / HTTPS.) The visitor's details (name, age group, sex, sectors, purpose, PC, pass status) show first; **Check in and start session** starts the 3-hour session. Also lists PCs reserved and waiting to be scanned (names and time left only: the visitor must show their own pass), **Register and give a PC** / **Log a visit (no PC)** for visitors without a phone, and the waitlist. |
-| **Computers** | Live board: every PC with its status (Available, Reserved, In use, Maintenance, Offline), who is on it, a countdown to the end of the session (red in the last 10 minutes), **Extend 1 h** (when the rules allow it; hover for why not), **End session** (asks first), **Register visitor** on a free PC, peripherals. **Details** shows the PC's problem reports, its session history and (admins) kiosk pairing. Admins can **Add a PC**. |
+| **Computers** | Live board: every PC with its status (Available, Reserved, In use, Maintenance, Offline), who is on it, a countdown to the end of the session (red in the last 10 minutes), **Extend 1 h** (when the rules allow it; hover for why not), **End session** (asks first), **Register visitor** on a free PC, peripherals. **Details** shows the PC's problem reports, its session history and (admins) kiosk pairing, **Rename**, and **Remove this PC** (only a PC never used, e.g. a sample PC). Admins can **Add a PC**. |
 | **Waitlist** | Everyone waiting, in order; when a PC is held for the first person, the time they have left to pick it. |
 | **Problems** | Open problem reports (**Report a problem**, **Resolve** with optional notes) and recently resolved ones. A PC with an open report shows as Maintenance. |
 | **Help requests** | "Need help?" requests from the kiosk app on each PC. |
@@ -77,6 +77,21 @@ Sign in first. The dashboard refreshes every 5 seconds. Tabs:
 **If the API is down or still starting**, the sign-in screen says "Cannot reach the API" and keeps checking every 3 seconds; the message goes away, and the dashboard opens if you were signed in, as soon as the API answers. The dev server answers `502` with that message while the API is unreachable (`vite.config.js`).
 
 Everyone can **Change password** (top of the page).
+
+## Building for real use
+
+- **A PC at DTC:** `npm run build:api` puts the built site in the API's `wwwroot`; the API then serves everything from one address.
+- **Netlify:** `netlify.toml` builds the site, forwards `/api/*` to the API on Render (signed, see DEPLOYMENT.md at the repository root), and sets the security headers.
+
+## Accessibility
+
+Checked with axe-core (WCAG 2.1 AA) in light and dark mode: every dashboard tab, the dialogs, the phone app, the poster and the sign-in page have no violations. What to keep when changing the screens:
+
+- Dialogs use `useModal` (`dashboard/useModal.js`): focus moves in, Tab stays inside, **Escape** closes, focus returns to the button that opened it. Give each dialog `role="dialog"`, `aria-modal="true"` and a heading it is `aria-labelledby`.
+- The dashboard content is inside `<main>`, with a "Skip to content" link for keyboard users.
+- Colours: text needs 4.5:1 contrast. On filled blue use `var(--on-primary)`. The phone app is light-only and stays light on dark-mode phones.
+- Charts have a text summary and a **Show table** view; scrollable tables can be reached with the keyboard.
+- Run the check yourself: open the site, then in the browser console load `node_modules/axe-core/axe.min.js` (dev dependency) and run `axe.run()`.
 
 ## Tests
 

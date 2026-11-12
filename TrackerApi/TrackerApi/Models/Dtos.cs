@@ -255,6 +255,7 @@ public record CheckInRequest(string? Token, string? Code);
 public record EndSessionRequest(SessionEndReason? Reason);
 
 public record CreateComputerRequest(string Name);
+public record RenameComputerRequest(string? Name);
 
 public record CreateProblemRequest(int ComputerId, string? Description);
 public record ResolveProblemRequest(string? Notes);

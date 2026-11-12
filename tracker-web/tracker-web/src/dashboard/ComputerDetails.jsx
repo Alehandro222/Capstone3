@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import { END_REASON_LABEL, STATUS_LABEL, STATUS_TONE, ago, clock, countdown, dateTime, minutesText, msUntil, useNow } from './format.js'
-import { Badge, ConfirmDialog, Empty } from './ui.jsx'
+import { Badge, ConfirmDialog, Empty, FormDialog } from './ui.jsx'
 import { useModal } from './useModal.js'
 import { parseUtc } from '../time.js'
 
@@ -13,6 +13,8 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
   const [error, setError] = useState('')
   const [pairing, setPairing] = useState(null) // the one-time code, shown once
   const [confirmUnpair, setConfirmUnpair] = useState(false)
+  const [adminDialog, setAdminDialog] = useState(null) // 'rename' | 'remove'
+  const [newName, setNewName] = useState('')
   const ref = useModal(onClose)
 
   const load = useCallback(async () => {
@@ -170,6 +172,28 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
                 Unpair
               </button>
             </div>
+
+            <h3>This PC in the list</h3>
+            <p className="muted small">
+              Match the list to the real machines: rename a PC, or remove one that was never used (for example a
+              sample PC). A PC with visitor history can only be renamed, so no records are lost.
+            </p>
+            <div className="actions">
+              <button
+                className="btn"
+                onClick={() => {
+                  setNewName(computer.name)
+                  setAdminDialog('rename')
+                }}
+              >
+                Rename
+              </button>
+              {sessions !== null && sessions.length === 0 && (
+                <button className="btn btn-danger-quiet" onClick={() => setAdminDialog('remove')}>
+                  Remove this PC
+                </button>
+              )}
+            </div>
           </section>
         )}
 
@@ -179,6 +203,43 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
           </button>
         </div>
       </div>
+
+      {adminDialog === 'rename' && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <FormDialog
+            title={`Rename ${computer.name}`}
+            submitLabel="Save name"
+            canSubmit={newName.trim().length > 0 && newName.trim() !== computer.name}
+            onCancel={() => setAdminDialog(null)}
+            onSubmit={async () => {
+              if (await run(() => api.renameComputer(computer.id, newName.trim()), `Renamed to ${newName.trim()}`))
+                setAdminDialog(null)
+            }}
+          >
+            <label className="field">
+              <span>New name (as labelled on the machine)</span>
+              <input value={newName} maxLength={50} autoFocus onChange={(e) => setNewName(e.target.value)} />
+            </label>
+            <p className="muted small">
+              The kiosk app shows the new name on its next check-in. Visitors' phones see it straight away.
+            </p>
+          </FormDialog>
+        </div>
+      )}
+
+      {adminDialog === 'remove' && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            title={`Remove ${computer.name}?`}
+            message="It disappears from the board and the phones. Its problem reports and help requests are deleted and its peripherals are unplugged. Its kiosk app stops working. This can't be undone."
+            confirmLabel="Remove PC"
+            onCancel={() => setAdminDialog(null)}
+            onConfirm={async () => {
+              if (await run(() => api.removeComputer(computer.id), `${computer.name} removed`)) onClose()
+            }}
+          />
+        </div>
+      )}
 
       {confirmUnpair && (
         <div onClick={(e) => e.stopPropagation()}>
