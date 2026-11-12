@@ -46,7 +46,7 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 - **Hosting for testing (decided, phase 8):** website on Netlify, the ASP.NET API on Render (free tier), database on Supabase PostgreSQL (switch EF Core from SQLite to Npgsql, new migrations). Mind: Render free sleeps after 15 min idle (kiosk heartbeats keep it awake but use most of the 750 free hours), Supabase free pauses after a week idle, kiosks/help desk need internet, Render's proxy must be trusted for X-Forwarded-For, and DICT-CAR may need to approve visitor data in the cloud. Real deployment may still be a PC at DTC.
 - **Kiosk lockdown at DTC:** user plans auto-sign-in + start-up app; explain the gaps (Task Manager, Win key, closing the app) and settle the Windows setup in phase 8.
 - **PC topology** – user will send it; the seed data is a sample of 12 PCs (PC-01..PC-12, PC-03 under maintenance).
-- Phases 1-6 and the pre-trial fixes are merged into `master` and pushed (`Alehandro222/Capstone3`). Phase 7 is on branch `phase-7-gemini`. Ask before merging into `master` or pushing a new branch.
+- Phases 1-7 and the pre-trial fixes are merged into `master` and pushed (`Alehandro222/Capstone3`). Phase 8 is on branch `phase-8-deploy`. Ask before merging into `master` or pushing a new branch.
 
 ## Working notes
 

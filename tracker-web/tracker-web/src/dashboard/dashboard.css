@@ -296,3 +296,35 @@ a.link-button { display: inline; }
   border-radius: 8px;
   font-size: 0.78rem;
 }
+
+/* ---- Accessibility ---- */
+
+/* Text on filled blue (selected tab, main buttons): white on the light theme's dark blue,
+   near-black on the dark theme's light blue, so both pass WCAG AA contrast. */
+:root { --on-primary: #ffffff; }
+@media (prefers-color-scheme: dark) { :root { --on-primary: #0b1220; } }
+.btn.btn-primary, .nav-tab.nav-tab-on { color: var(--on-primary); }
+
+/* For screen readers only. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Keyboard users can jump past the header and tabs. */
+.skip-link {
+  position: absolute; left: 16px; top: -48px; z-index: 30;
+  background: var(--primary); color: var(--on-primary);
+  padding: 8px 14px; border-radius: 8px; text-decoration: none;
+}
+.skip-link:focus { top: 12px; }
+main:focus { outline: none; }
+.table-wrap:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Respect "reduce motion" settings. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+/* The form inside a dialog lays out like the dialog itself. */
+.modal-form { display: grid; gap: 14px; }

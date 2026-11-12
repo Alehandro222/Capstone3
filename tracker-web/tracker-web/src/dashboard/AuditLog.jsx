@@ -94,7 +94,7 @@ export default function AuditLog() {
       ) : (
         <>
           {entries.length >= 500 && <p className="muted small">Showing the latest 500. Narrow the filters to see older ones.</p>}
-          <div className="table-wrap">
+          <div className="table-wrap" tabIndex={0} role="region" aria-label="Audit log entries">
             <table className="table">
               <thead>
                 <tr>

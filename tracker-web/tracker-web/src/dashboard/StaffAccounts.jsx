@@ -47,7 +47,7 @@ export default function StaffAccounts({ me, run }) {
       {accounts === null ? (
         <p className="muted">Loading…</p>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Staff accounts">
           <table className="table">
             <thead>
               <tr>
@@ -56,7 +56,7 @@ export default function StaffAccounts({ me, run }) {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Last sign-in</th>
-                <th />
+                <th><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

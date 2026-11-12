@@ -6,3 +6,5 @@ obj/
 .vs/
 old-db-backup/
 *.local.txt
+wwwroot/
+backups/

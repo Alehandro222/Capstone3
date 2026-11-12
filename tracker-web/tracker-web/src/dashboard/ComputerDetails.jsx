@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import { END_REASON_LABEL, STATUS_LABEL, STATUS_TONE, ago, clock, countdown, dateTime, minutesText, msUntil, useNow } from './format.js'
 import { Badge, ConfirmDialog, Empty } from './ui.jsx'
+import { useModal } from './useModal.js'
 import { parseUtc } from '../time.js'
 
 // One PC: its problem reports, its session history and (admins) its kiosk pairing.
@@ -12,6 +13,7 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
   const [error, setError] = useState('')
   const [pairing, setPairing] = useState(null) // the one-time code, shown once
   const [confirmUnpair, setConfirmUnpair] = useState(false)
+  const ref = useModal(onClose)
 
   const load = useCallback(async () => {
     try {
@@ -47,9 +49,17 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal modal-wide details-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={computer.name}>
+      <div
+        className="modal modal-wide details-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="details-title"
+        ref={ref}
+        tabIndex={-1}
+      >
         <div className="card-head">
-          <h2>{computer.name}</h2>
+          <h2 id="details-title">{computer.name}</h2>
           <Badge tone={STATUS_TONE[computer.status]}>{STATUS_LABEL[computer.status]}</Badge>
         </div>
         <p className="muted small">
@@ -101,7 +111,7 @@ export default function ComputerDetails({ computer, isAdmin, run, onReportProble
           ) : sessions.length === 0 ? (
             <Empty>No sessions yet.</Empty>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="Session history">
               <table className="table">
                 <thead>
                   <tr>

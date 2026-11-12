@@ -44,7 +44,7 @@ export default function VisitorLog({ refreshKey }) {
       ) : visits.length === 0 ? (
         <Empty>No visits logged on this day.</Empty>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Visits on this day">
           <table className="table">
             <thead>
               <tr>

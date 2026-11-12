@@ -2,12 +2,12 @@
   --bg: #f4f6f9;
   --surface: #ffffff;
   --text: #1b2430;
-  --muted: #6b7686;
+  --muted: #5a6577;   /* 5.4:1 on the page background (WCAG AA) */
   --border: #dde2ea;
   --primary: #1f5eff;
-  --available: #1a8a4a;
+  --available: #146c3a;
   --available-bg: #e4f5ea;
-  --inuse: #b86a00;
+  --inuse: #8a4f00;
   --inuse-bg: #fff1dc;
   --broken: #c0322b;
   --broken-bg: #fde8e6;

@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { useModal } from './useModal.js'
 
 // A dialog around a form. onSubmit may be async; return false to keep the dialog open.
 export function FormDialog({ title, description, submitLabel, danger, wide, canSubmit = true, onSubmit, onCancel, children }) {
   const [saving, setSaving] = useState(false)
+  const ref = useModal(onCancel)
+  const titleId = useId()
+  const descriptionId = useId()
 
   async function submit(e) {
     e.preventDefault()
@@ -17,15 +21,19 @@ export function FormDialog({ title, description, submitLabel, danger, wide, canS
 
   return (
     <div className="overlay" onClick={onCancel}>
-      <form
+      <div
         className={wide ? 'modal modal-wide' : 'modal'}
         onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
         role="dialog"
-        aria-label={title}
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        ref={ref}
+        tabIndex={-1}
       >
-        <h2>{title}</h2>
-        {description && <p className="muted small">{description}</p>}
+      <form className="modal-form" onSubmit={submit}>
+        <h2 id={titleId}>{title}</h2>
+        {description && <p className="muted small" id={descriptionId}>{description}</p>}
         {children}
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onCancel}>
@@ -41,6 +49,7 @@ export function FormDialog({ title, description, submitLabel, danger, wide, canS
           </button>
         </div>
       </form>
+      </div>
     </div>
   )
 }

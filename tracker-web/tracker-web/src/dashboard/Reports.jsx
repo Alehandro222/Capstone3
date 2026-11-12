@@ -260,13 +260,13 @@ function Columns({ title, note, data }) {
           {title}
           {note && <span className="h3-note"> · {note}</span>}
         </h3>
-        <button className="link-button small" onClick={() => setShowTable((v) => !v)}>
+        <button className="link-button small" aria-pressed={showTable} onClick={() => setShowTable((v) => !v)}>
           {showTable ? 'Show chart' : 'Show table'}
         </button>
       </div>
 
       {showTable ? (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label={`${title} (table)`}>
           <table className="table">
             <tbody>
               {data.map((d) => (
@@ -279,7 +279,12 @@ function Columns({ title, note, data }) {
           </table>
         </div>
       ) : (
-        <div className="columns" role="img" aria-label={`${title}. Peak ${fmt(max)}.`} onMouseLeave={() => setHover(null)}>
+        <div
+          className="columns"
+          role="img"
+          aria-label={`${title}. Highest: ${fmt(max)}. Use "Show table" for every value.`}
+          onMouseLeave={() => setHover(null)}
+        >
           <span className="columns-max muted small">{fmt(max)}</span>
           <div className="columns-plot">
             {data.map((d, i) => (
@@ -287,9 +292,7 @@ function Columns({ title, note, data }) {
                 key={d.key}
                 className={hover === i ? 'col col-on' : 'col'}
                 onMouseEnter={() => setHover(i)}
-                onFocus={() => setHover(i)}
-                tabIndex={0}
-                aria-label={`${d.label}: ${fmt(d.value)}`}
+                aria-hidden="true"
               >
                 <span className="col-fill" style={{ height: `${(d.value / max) * 100}%` }} />
                 {hover === i && (
@@ -300,7 +303,7 @@ function Columns({ title, note, data }) {
               </div>
             ))}
           </div>
-          <div className="columns-axis">
+          <div className="columns-axis" aria-hidden="true">
             {data.map((d, i) => (
               <span key={d.key} className="muted small">{i % step === 0 ? d.label : ''}</span>
             ))}

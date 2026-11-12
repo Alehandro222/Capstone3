@@ -44,7 +44,10 @@ public static class AuthSetup
                 o.Cookie.Name = CookieName;
                 o.Cookie.HttpOnly = true;                       // page scripts cannot read it
                 o.Cookie.SameSite = SameSiteMode.Lax;           // other websites cannot use it
-                o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // HTTPS-only once HTTPS is on
+                // HTTPS-only on the internet (Hosting:RequireHttps); on a PC at DTC, follow the request.
+                o.Cookie.SecurePolicy = config.GetValue<bool>("Hosting:RequireHttps")
+                    ? CookieSecurePolicy.Always
+                    : CookieSecurePolicy.SameAsRequest;
                 o.ExpireTimeSpan = TimeSpan.FromHours(10);      // about one working day
                 o.SlidingExpiration = true;
 

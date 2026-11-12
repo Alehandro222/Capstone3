@@ -57,7 +57,7 @@ export default function Problems({ openProblems, refreshKey, onReport, onResolve
       {resolved.length === 0 ? (
         <Empty>Nothing resolved yet.</Empty>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Recently resolved problems">
           <table className="table">
             <thead>
               <tr>

@@ -135,6 +135,7 @@ export default function App({ me, onSignOut }) {
 
   return (
     <div className="page">
+      <a className="skip-link" href="#main">Skip to content</a>
       <header className="header">
         <div>
           <h1>MISA Computer System Tracker</h1>
@@ -174,6 +175,7 @@ export default function App({ me, onSignOut }) {
         ))}
       </nav>
 
+      <main id="main" tabIndex={-1}>
       {error && <div className="banner" role="alert">{error}</div>}
       {!loaded && !error && <p className="muted">Loading…</p>}
 
@@ -220,6 +222,8 @@ export default function App({ me, onSignOut }) {
       {tab === 'reports' && <Reports isAdmin={isAdmin} refreshKey={refreshKey} />}
       {tab === 'staff' && isAdmin && <StaffAccounts me={me} run={run} />}
       {tab === 'audit' && isAdmin && <AuditLog />}
+
+      </main>
 
       {dialog?.type === 'walkin' && (
         <WalkInDialog

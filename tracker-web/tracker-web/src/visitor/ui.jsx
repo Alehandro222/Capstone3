@@ -37,7 +37,7 @@ export function AlertIcon() {
 
 export function Logo({ large = false }) {
   return (
-    <div className={`v-logo ${large ? 'v-logo--large' : ''}`} aria-label="MISA">
+    <div className={`v-logo ${large ? 'v-logo--large' : ''}`} role="img" aria-label="MISA">
       <span className="v-logo__mark">
         <span className="v-logo__screen" />
         <span className="v-logo__book" />

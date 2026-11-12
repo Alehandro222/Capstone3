@@ -418,3 +418,9 @@
 .v-poster__url { font-size: 15px; color: #617187; word-break: break-all; }
 .v-poster__print { margin-top: 24px; }
 @media print { .v-poster__print { display: none; } }
+
+/* The phone app and the poster are light-only (the Figma design). On a phone set to dark
+   mode, keep the whole page (and the browser's own form controls) light, so no dark
+   background shows around or behind the design. */
+html:has(.v-app), html:has(.v-poster) { color-scheme: light; }
+body:has(.v-app), body:has(.v-poster) { background: #fff; }

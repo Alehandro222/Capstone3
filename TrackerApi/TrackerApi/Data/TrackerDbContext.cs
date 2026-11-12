@@ -12,6 +12,11 @@ public class TrackerDbContext : DbContext
     {
     }
 
+    // For PostgresTrackerDbContext (same tables, its own migrations).
+    protected TrackerDbContext(DbContextOptions options) : base(options)
+    {
+    }
+
     public DbSet<Computer> Computers => Set<Computer>();
     public DbSet<Peripheral> Peripherals => Set<Peripheral>();
     public DbSet<UsageSession> Sessions => Set<UsageSession>();
@@ -33,7 +38,8 @@ public class TrackerDbContext : DbContext
 
         // All times are stored in UTC, but SQLite forgets that when reading them back.
         // This marks them as UTC again, so the JSON always ends in "Z" and browsers
-        // never mistake them for local time.
+        // never mistake them for local time. (PostgreSQL also insists that what it stores
+        // is marked UTC, so an unmarked time is treated as UTC on the way in.)
         builder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
         builder.Properties<DateTime?>().HaveConversion<UtcDateTimeConverter>();
     }
@@ -41,7 +47,7 @@ public class TrackerDbContext : DbContext
     private class UtcDateTimeConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>
     {
         public UtcDateTimeConverter() : base(
-            toDb => toDb.Kind == DateTimeKind.Local ? toDb.ToUniversalTime() : toDb,
+            toDb => toDb.Kind == DateTimeKind.Local ? toDb.ToUniversalTime() : DateTime.SpecifyKind(toDb, DateTimeKind.Utc),
             fromDb => DateTime.SpecifyKind(fromDb, DateTimeKind.Utc))
         {
         }

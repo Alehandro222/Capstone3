@@ -18,7 +18,7 @@ export default function Waitlist({ waitlist, computers }) {
       {waitlist.length === 0 ? (
         <Empty>Nobody is waiting.</Empty>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="People waiting">
           <table className="table">
             <thead>
               <tr>

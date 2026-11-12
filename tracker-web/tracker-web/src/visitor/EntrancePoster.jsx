@@ -10,7 +10,7 @@ export default function EntrancePoster() {
   const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 
   return (
-    <div className="v-poster">
+    <main className="v-poster">
       <div className="v-poster__card">
         <Logo large />
         <h1>Log your visit here</h1>
@@ -31,6 +31,6 @@ export default function EntrancePoster() {
           <button className="v-button v-button--primary" onClick={() => window.print()}>Print poster</button>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

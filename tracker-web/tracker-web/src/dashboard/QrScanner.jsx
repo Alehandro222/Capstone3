@@ -1,5 +1,6 @@
 import jsQR from 'jsqr'
 import { useEffect, useRef, useState } from 'react'
+import { useModal } from './useModal.js'
 
 // Reads a QR code with the computer's camera and calls onScan(text) once.
 // Works on any browser with a camera (jsQR decodes the frames), but browsers
@@ -7,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 export default function QrScanner({ onScan, onCancel }) {
   const videoRef = useRef(null)
   const [error, setError] = useState('')
+  const dialogRef = useModal(onCancel)
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
 
@@ -74,13 +76,21 @@ export default function QrScanner({ onScan, onCancel }) {
 
   return (
     <div className="overlay" onClick={onCancel}>
-      <div className="modal scanner" onClick={(e) => e.stopPropagation()}>
-        <h2>Scan the visitor's QR pass</h2>
+      <div
+        className="modal scanner"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scanner-title"
+        ref={dialogRef}
+        tabIndex={-1}
+      >
+        <h2 id="scanner-title">Scan the visitor's QR pass</h2>
         {error ? (
-          <p className="form-error">{error}</p>
+          <p className="form-error" role="alert">{error}</p>
         ) : (
           <div className="scanner-view">
-            <video ref={videoRef} muted playsInline />
+            <video ref={videoRef} muted playsInline aria-label="Camera view" />
             <div className="scanner-frame" aria-hidden="true" />
           </div>
         )}

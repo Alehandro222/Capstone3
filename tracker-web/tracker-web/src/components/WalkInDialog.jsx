@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useModal } from '../dashboard/useModal.js'
 import {
   AGE_GROUPS,
   SECTORS,
@@ -21,6 +22,7 @@ export default function WalkInDialog({ computer: fixedComputer, freeComputers, w
   const computer = fixedComputer ?? freeComputers?.find((c) => c.id === Number(chosenId))
   const [saving, setSaving] = useState(false)
   const [tried, setTried] = useState(false)
+  const ref = useModal(onCancel)
 
   const problem = registrationProblem(form)
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }))
@@ -41,8 +43,17 @@ export default function WalkInDialog({ computer: fixedComputer, freeComputers, w
 
   return (
     <div className="overlay" onClick={onCancel}>
-      <form className="modal modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{fixedComputer ? `Register a visitor on ${fixedComputer.name}` : freeComputers ? 'Register a visitor' : 'Log a visit'}</h2>
+      <div
+        className="modal modal-wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="walkin-title"
+        ref={ref}
+        tabIndex={-1}
+      >
+      <form className="modal-form" onSubmit={submit} noValidate>
+        <h2 id="walkin-title">{fixedComputer ? `Register a visitor on ${fixedComputer.name}` : freeComputers ? 'Register a visitor' : 'Log a visit'}</h2>
         <p className="muted small">
           {computer
             ? 'For a visitor without a phone. Their session starts as soon as you save.'
@@ -89,7 +100,7 @@ export default function WalkInDialog({ computer: fixedComputer, freeComputers, w
         </details>
 
         {warning && computer && <p className="form-warning">{warning}</p>}
-        {tried && problem && <p className="form-error">{problem}</p>}
+        {tried && problem && <p className="form-error" role="alert">{problem}</p>}
 
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onCancel}>
@@ -100,6 +111,7 @@ export default function WalkInDialog({ computer: fixedComputer, freeComputers, w
           </button>
         </div>
       </form>
+      </div>
     </div>
   )
 }

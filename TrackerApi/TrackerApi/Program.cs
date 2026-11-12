@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Auth;
 using TrackerApi.Data;
@@ -18,8 +17,19 @@ builder.Services
     // A request the API cannot read (e.g. a misspelled sector) also gets { "message": "..." }.
     .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = TrackerExceptionFilter.UnreadableRequest);
 
-builder.Services.AddDbContext<TrackerDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+// The database: SQLite (one file, a PC at DTC; the default) or PostgreSQL (Supabase, hosted).
+// Database:Provider = "Sqlite" | "Postgres"; ConnectionStrings:Default says where it is.
+var connection = builder.Configuration.GetConnectionString("Default");
+if (string.Equals(builder.Configuration["Database:Provider"], "Postgres", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDbContext<TrackerDbContext, PostgresTrackerDbContext>(options =>
+        // (No automatic retries: they refuse the explicit transactions the services use.)
+        options.UseNpgsql(connection));
+}
+else
+{
+    builder.Services.AddDbContext<TrackerDbContext>(options => options.UseSqlite(connection));
+}
 
 // Time limits from the "Tracker" section of appsettings.json.
 builder.Services.Configure<TrackerOptions>(builder.Configuration.GetSection(TrackerOptions.Section));
@@ -50,15 +60,23 @@ builder.Services.AddScoped<KioskPairingService>();
 // Limits how fast one device can sign in, take passes or join the waitlist (see Auth/RateLimits.cs).
 builder.Services.AddTrackerRateLimits(builder.Configuration);
 
+// On the internet (Hosting:RequireHttps): http:// requests are sent to https:// on port 443
+// (the platform, e.g. Render, terminates HTTPS in front of the API).
+builder.Services.AddHttpsRedirection(o => o.HttpsPort = 443);
+
 // Expires passes and ends overdue sessions in the background.
 builder.Services.AddHostedService<CleanupService>();
+
+// Daily copy of the SQLite database (a PC at DTC), kept for Backup:KeepDays.
+builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
+builder.Services.AddHostedService<BackupService>();
 
 // Swagger gives us a web page to test the API without writing a frontend.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// No CORS: the websites reach the API through the Vite dev server's /api proxy
-// (and later from the same address), so the browser never makes cross-site calls.
+// No CORS: the websites reach the API from the same address (the Vite dev server's /api
+// proxy, Netlify's /api proxy, or the API serving the built site), never cross-site.
 
 var app = builder.Build();
 
@@ -82,16 +100,35 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Behind the website's server (the Vite dev server today), every request comes from this PC.
-// Use the visitor's address it passes on in X-Forwarded-For, but only when the request comes
-// from this machine itself (ASP.NET trusts only loopback proxies by default), so a phone
-// cannot fake its address to dodge the rate limits.
-app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor });
+// Real visitor addresses behind proxies, the Netlify signature check, HTTPS and security
+// headers (see Auth/HostingSetup.cs and the "Hosting" settings).
+app.UseTrackerHosting();
+
+// The built website, when it is copied into wwwroot (npm run build:api): one address for
+// everything on a PC at DTC. (On Netlify, Netlify serves the website instead.)
+if (File.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "index.html")))
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        OnPrepareResponse = ctx =>
+        {
+            // Built files have a version in their name (index-3fa9c.js): cache them for a year.
+            // index.html must always be checked, so an update reaches every phone at once.
+            ctx.Context.Response.Headers.CacheControl = ctx.Context.Request.Path.StartsWithSegments("/assets")
+                ? "public, max-age=31536000, immutable"
+                : "no-cache";
+        }
+    });
+}
 
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// For Render's health check (and monitoring): no data, no sign-in.
+app.MapGet(HostingSetup.HealthPath, () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.Run();
 

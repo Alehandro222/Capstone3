@@ -29,16 +29,20 @@ public class TrackerFactory : WebApplicationFactory<Program>
     private readonly bool _rateLimits;
     private readonly System.Net.IPAddress? _remoteIp;
     private readonly HttpMessageHandler? _gemini;
+    private readonly Dictionary<string, string>? _settings;
     private readonly Dictionary<int, HttpClient> _kiosks = new();
 
     // remoteIp: where requests appear to come from (the in-memory server has no real
     // network). 127.0.0.1 = the website's server on the same PC, forwarding for phones.
     // gemini: stands in for Google's Gemini API (the report assistant), with a test API key.
-    public TrackerFactory(bool rateLimits = false, System.Net.IPAddress? remoteIp = null, HttpMessageHandler? gemini = null)
+    // settings: extra appsettings values for this test, e.g. { "Hosting:RequireHttps", "true" }.
+    public TrackerFactory(bool rateLimits = false, System.Net.IPAddress? remoteIp = null, HttpMessageHandler? gemini = null,
+        Dictionary<string, string>? settings = null)
     {
         _rateLimits = rateLimits;
         _remoteIp = remoteIp;
         _gemini = gemini;
+        _settings = settings;
     }
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 7, 1, 0, 0, TimeSpan.Zero));
@@ -54,6 +58,8 @@ public class TrackerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Tracker:CleanupIntervalSeconds", "0");
         builder.UseSetting("RateLimits:Enabled", _rateLimits ? "true" : "false");
         builder.UseSetting("Gemini:ApiKey", _gemini is null ? "" : "test-gemini-key");
+        builder.UseSetting("Backup:Enabled", "false"); // BackupTests switch it on, with a temp folder
+        foreach (var (key, value) in _settings ?? new()) builder.UseSetting(key, value);
 
         builder.ConfigureServices(services =>
         {
