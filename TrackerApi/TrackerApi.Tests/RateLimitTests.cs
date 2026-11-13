@@ -64,4 +64,47 @@ public class RateLimitTests : IDisposable
         var refused = await device.Post("/api/kiosk/pair", new { code = "WRONG999" });
         Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
     }
+
+    // Hosted, every phone on DTC's Wi-Fi shares DTC's one public address.
+    [Fact]
+    public async Task Phones_sharing_one_address_each_get_their_own_limit()
+    {
+        var ana = _factory.Anonymous();
+        var ben = _factory.Anonymous(); // another phone, same address
+        for (var i = 0; i < 6; i++) await ana.Register($"Ana{i}", "Reyes");
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await ana.Post("/api/visits", ApiExtensions.Registration())).StatusCode);
+
+        await ben.Register("Ben", "Cruz");
+    }
+
+    [Fact]
+    public async Task Dropping_the_cookie_still_hits_the_cap_for_the_address()
+    {
+        // 10 x 6 = 60 registrations from one address, however many "devices".
+        for (var i = 0; i < 60; i++)
+            await _factory.Anonymous().Register($"Visitor{i}", "Test");
+
+        var next = await _factory.Anonymous().Post("/api/visits", ApiExtensions.Registration());
+        Assert.Equal(HttpStatusCode.TooManyRequests, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_device_cookie_is_only_for_the_api_and_hidden_from_scripts()
+    {
+        var response = await _factory.Anonymous().GetAsync("/api/public/computers");
+        var cookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("misa.device="));
+        Assert.Contains("path=/api", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=lax", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(@"^misa\.device=[0-9a-f]{32};", cookie);
+    }
+
+    [Fact]
+    public async Task A_made_up_device_cookie_is_replaced()
+    {
+        var phone = _factory.Anonymous();
+        phone.DefaultRequestHeaders.Add("Cookie", "misa.device=not-a-real-id");
+        var response = await phone.GetAsync("/api/public/computers");
+        Assert.Contains(response.Headers.GetValues("Set-Cookie"), c => c.StartsWith("misa.device="));
+    }
 }

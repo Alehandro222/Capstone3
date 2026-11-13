@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Auth;
 using TrackerApi.Data;
@@ -25,6 +26,12 @@ if (string.Equals(builder.Configuration["Database:Provider"], "Postgres", String
     builder.Services.AddDbContext<TrackerDbContext, PostgresTrackerDbContext>(options =>
         // (No automatic retries: they refuse the explicit transactions the services use.)
         options.UseNpgsql(connection));
+
+    // Hosted: keep the sign-in cookie keys in the database, or every restart of the
+    // container (each deploy, each wake-up on Render's free plan) would sign all staff out.
+    builder.Services.AddDataProtection()
+        .SetApplicationName("MISA")
+        .PersistKeysToDbContext<TrackerDbContext>();
 }
 else
 {
@@ -122,7 +129,8 @@ if (File.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "index.
     });
 }
 
-app.UseRateLimiter();
+// Gives each device its counting cookie, then applies the limits (see Auth/RateLimits.cs).
+app.UseTrackerRateLimits();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

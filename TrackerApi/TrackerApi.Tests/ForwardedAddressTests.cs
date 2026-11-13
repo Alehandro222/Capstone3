@@ -44,11 +44,14 @@ public class ForwardedAddressTests
     [Fact]
     public async Task A_device_on_the_network_cannot_fake_its_address()
     {
-        using var factory = new TrackerFactory(rateLimits: true, remoteIp: IPAddress.Parse("192.168.1.50"));
+        // Each limit is per device (cookie), with a shared cap per real address: 2 x 6 = 12 here.
+        using var factory = new TrackerFactory(rateLimits: true, remoteIp: IPAddress.Parse("192.168.1.50"),
+            settings: new() { ["RateLimits:PerNetworkFactor"] = "2" });
 
-        // Same device, a new made-up address each time: still one device, one limit.
-        for (var i = 0; i < 6; i++) await Phone(factory, $"10.0.0.{i}").Register($"Fake{i}", "Test");
-        var seventh = await Phone(factory, "10.0.0.99").Post("/api/visits", ApiExtensions.Registration());
-        Assert.Equal(HttpStatusCode.TooManyRequests, seventh.StatusCode);
+        // A script on one device, a new made-up address (and no cookie) each time:
+        // it still counts against its one real address.
+        for (var i = 0; i < 12; i++) await Phone(factory, $"10.0.0.{i}").Register($"Fake{i}", "Test");
+        var next = await Phone(factory, "10.0.0.99").Post("/api/visits", ApiExtensions.Registration());
+        Assert.Equal(HttpStatusCode.TooManyRequests, next.StatusCode);
     }
 }

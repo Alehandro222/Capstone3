@@ -51,28 +51,60 @@ request; the API refuses anything unsigned, so nobody can go around the website.
 phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)──▶ Render (API) ──▶ Supabase
 ```
 
-1. **Supabase**: create a project (region: Singapore). *Project Settings → Database →
-   Connection string → Session pooler* (IPv4; Render has no IPv6). It looks like
-   `Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.<ref>;Password=<pw>;SSL Mode=Require`.
+1. **Supabase**: create a project (region: Singapore). Let Supabase generate the database
+   password (letters and digits: a `;` or `'` would break the connection string). *Connect →
+   type **.NET** → **Session pooler*** (IPv4; Render has no IPv6). Put in the password and add
+   `;SSL Mode=Require`. It looks like
+   `User Id=postgres.<ref>;Password=<pw>;Server=aws-0-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;SSL Mode=Require`.
+   The API can't read the `postgresql://…` form; rebuild it in this form if that's all you see.
    Don't use the transaction pooler (port 6543): it breaks prepared statements.
-2. **A shared secret** for Netlify → Render: any long random string, e.g.
-   `powershell -c "[Convert]::ToBase64String((1..32|%{Get-Random -Max 256}))"`.
+2. **A shared secret** for Netlify → Render: a long random string, e.g. in PowerShell
+   `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`
+   (not `Get-Random`, which isn't meant for secrets).
 3. **Render**: *New → Blueprint →* this repository (`render.yaml`). Fill in:
    `ConnectionStrings__Default` (step 1), `Hosting__ProxySignatureSecret` (step 2),
-   optionally `Gemini__ApiKey`. Deploy. The API creates the tables on first start.
+   optionally `Gemini__ApiKey`. Deploy. The API creates the tables on first start, and keeps
+   the staff sign-in keys there too, so a restart or a free-plan sleep doesn't sign staff out.
    Open `https://<service>.onrender.com/health` → `{"status":"ok"}`.
 4. **Netlify**: *Add new site → Import from Git*, **Base directory** `tracker-web/tracker-web`.
    In `netlify.toml`, replace `YOUR-RENDER-SERVICE` with the Render service name and push.
    *Site configuration → Environment variables*: `API_SIGNATURE_TOKEN` = the secret from step 2,
    scope **Runtime** (or "All").
-5. **First admin**: Render's *Shell* tab: `dotnet TrackerApi.dll create-admin <username> "<name>"`.
+5. **First admin**: Render's free plan has no *Shell* tab, so create it from your own PC,
+   straight into Supabase. In PowerShell, in `TrackerApi/TrackerApi`:
+   ```powershell
+   $env:Database__Provider = "Postgres"
+   $env:ConnectionStrings__Default = Read-Host "Supabase connection string"   # typed here, not saved
+   dotnet run --no-launch-profile -- create-admin <username> "<full name>"
+   Remove-Item Env:ConnectionStrings__Default, Env:Database__Provider
+   ```
+   (If the API is running on this PC, `dotnet run` can't build; close it first.)
 6. **Check after the first deploy**:
    - `https://<service>.onrender.com/api/public/computers` directly → **403** (unsigned: good).
    - Sign in at `https://<site>.netlify.app`, register on a phone, then *Audit log*: the IP
      address column should show the phone's public address, not a Netlify/Render one. If it
      shows a Netlify address, set `Hosting__TrustedProxyHops` to `3`; if it is blank or odd, `1`.
-   - Kiosks: `apiUrl: https://<site>.netlify.app/`, `visitorUrl: https://<site>.netlify.app/#/visit`.
-7. **Backups**: Supabase's free plan has no backups you can download. Before real data, either
+   - Kiosks: `apiUrl: https://<site>.netlify.app/`, `visitorUrl: https://<site>.netlify.app/#/visit`,
+     and `refreshSeconds: 15` (see "Request budget" below).
+   - Restart the service (*Manual Deploy → Restart*): staff who were signed in stay signed in.
+7. **Request budget (Netlify free plan).** Every request goes through Netlify, and the free
+   plan has 300 credits a month with a hard limit (web requests cost 2 credits per 10,000:
+   about 1.5 million requests). Rough use, 9 hours a day, 22 days a month:
+   | | Every 5 s (default) | Every 15 s |
+   |---|---|---|
+   | 12 kiosks (heartbeat, `refreshSeconds`) | 1.7 million | 0.57 million |
+   | Help-desk dashboard (one `/api/board` request per refresh) | 0.14 million | |
+   | Phones | 1 request every 3 s while the visit page is on screen | |
+
+   The website stops asking while a page is hidden (another tab, a locked phone). Kiosk PCs
+   left on overnight still send heartbeats; turn them off after hours. Watch *Team →
+   Usage & billing* in the first week. A kiosk heartbeat every 15 s is still well inside the
+   30 s after which a PC shows as Offline.
+8. **Rate limits behind one address.** Every phone on DTC's Wi-Fi reaches the cloud from DTC's
+   one public address. Limits count per phone (a cookie), with a shared cap per address of
+   `RateLimits__PerNetworkFactor` (10) times each limit: 60 registrations in 10 minutes for
+   the whole centre. For an event with more people arriving at once, raise it on Render.
+9. **Backups**: Supabase's free plan has no backups you can download. Before real data, either
    upgrade, or export regularly (Supabase dashboard → Database → Backups / `pg_dump`), and keep
    exports no longer than a year (DTC's rule).
 

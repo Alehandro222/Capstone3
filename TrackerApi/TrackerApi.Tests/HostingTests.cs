@@ -80,8 +80,10 @@ public class HostingTests
     public async Task Behind_netlify_and_render_each_visitor_keeps_their_own_rate_limit()
     {
         // Render's load balancer calls the API; X-Forwarded-For is "<visitor>, <Netlify>".
+        // Each new client here is a new device (no cookie), so this checks the cap per
+        // address, set to the device limit (factor 1) to make it easy to reach.
         using var factory = new TrackerFactory(rateLimits: true, remoteIp: IPAddress.Parse("10.10.0.1"),
-            settings: new() { ["Hosting:TrustedProxyHops"] = "2" });
+            settings: new() { ["Hosting:TrustedProxyHops"] = "2", ["RateLimits:PerNetworkFactor"] = "1" });
 
         HttpClient Phone(string forwardedFor)
         {

@@ -83,7 +83,7 @@ Every endpoint needs a staff sign-in **unless it is marked otherwise**, so a new
 - **5 wrong passwords** lock the account for 15 minutes (an admin can unlock it sooner).
 - **Deactivating** an account or changing its role signs that person out straight away.
 - There must **always be one active admin**: the API refuses to deactivate or demote the last one.
-- Open routes are **rate-limited** per device (IP address): 10 sign-in attempts a minute, 6 registrations, 6 PC picks and 5 waitlist joins per 10 minutes, and 10 pairing attempts a minute. Over the limit the API answers **429** with a message. This stops one phone from reserving every PC with a script.
+- Open routes are **rate-limited** per device (a cookie, with a shared cap per network address): 10 sign-in attempts a minute, 6 registrations, 6 PC picks and 5 waitlist joins per 10 minutes, and 10 pairing attempts a minute. Over the limit the API answers **429** with a message. This stops one phone from reserving every PC with a script.
 
 ### Pairing a PC
 
@@ -141,7 +141,11 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `WaitlistJoinsPer10Minutes` | Waitlist joins per device | `5` |
 | `PairingPerMinute` | Kiosk pairing attempts per device | `10` |
 
-Limits count per IP address. Phones reach the API through the website's server, so every request arrives from this PC; the website's server passes each phone's real address in `X-Forwarded-For`, and the API uses it **only when the request comes from this same machine** (so a phone can't fake its address). The audit log records the same address. A proxy on another machine (for example a hosting service) must be added to `ForwardedHeadersOptions.KnownProxies` in `Program.cs`.
+| `PerNetworkFactor` | One network address may do this many times each limit, shared by every device behind it | `10` |
+
+Limits count per **device**: the API gives each browser and kiosk app a random `misa.device` cookie (HttpOnly, 30 days, nothing stored with it) and counts each limit per cookie. A script can throw its cookie away, so every network address also has a shared cap of `PerNetworkFactor` times the limit. Hosted, every phone on DTC's Wi-Fi shares DTC's one public address, so that cap is the limit for the whole centre (60 registrations in 10 minutes by default; raise `PerNetworkFactor` for a big event).
+
+Phones reach the API through the website's server, which passes each phone's real address in `X-Forwarded-For`; the API uses it **only when the request comes from this same machine** (so a phone can't fake its address), or, when hosted, from the `Hosting:TrustedProxyHops` proxies in front of it (`Auth/HostingSetup.cs`). The audit log records the same address.
 
 The 20-minute idle logout is set in the kiosk app (`idleTimeoutSeconds` in `kiosk.settings.json`), because only the PC knows when its keyboard and mouse were last used.
 
@@ -151,7 +155,7 @@ How to deploy (a PC at DTC, or Netlify + Render + Supabase) is in **[DEPLOYMENT.
 
 | Setting | Meaning | Default |
 |---|---|---|
-| `Database:Provider` | `Sqlite` (one file; a PC at DTC) or `Postgres` (Supabase). PostgreSQL has its own migrations in `Migrations/Postgres` (`PostgresTrackerDbContext`). | `Sqlite` |
+| `Database:Provider` | `Sqlite` (one file; a PC at DTC) or `Postgres` (Supabase). PostgreSQL has its own migrations in `Migrations/Postgres` (`PostgresTrackerDbContext`). With `Postgres`, the keys behind the staff sign-in cookie are kept in the database (`DataProtectionKeys` table), so restarting the container doesn't sign everyone out; with SQLite, Windows keeps them in the user profile. | `Sqlite` |
 | `ConnectionStrings:Default` | `Data Source=tracker.db`, or the Supabase session-pooler connection string | `Data Source=tracker.db` |
 | `Hosting:TrustedProxyHops` | How many proxies add themselves to `X-Forwarded-For`. `0` = only a proxy on this machine (the Vite dev server); Netlify → Render = `2`. | `0` |
 | `Hosting:ProxySignatureSecret` | When set, every request must carry Netlify's signature (`x-nf-sign`, HMAC-SHA256 with this secret); others get **403**, except `GET /health`. | empty |
@@ -186,6 +190,7 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 
 | Method | Route | Purpose |
 |---|---|---|
+| GET | `/api/board` | The help desk's refresh in one request: `computers`, `sessions` (active), `tickets` (help requests), `waitlist`, `problems` (open) and `passes` (pending): the same lists as their own routes in this table |
 | GET | `/api/computers` | Dashboard: status, current user, session end time, open problem, peripherals, `pairedAt` (when its kiosk app was paired; `null` = not paired) |
 | GET | `/api/computers/{id}` | One PC, same details |
 | GET | `/api/computers/{id}/sessions` | Session history for one PC |
@@ -304,7 +309,7 @@ dotnet dotnet-ef migrations add DescribeYourChange --context PostgresTrackerDbCo
 dotnet run                                   # applies it on startup
 ```
 
-Every change needs **both** migrations: SQLite (`Migrations/`) and PostgreSQL (`Migrations/Postgres`). Commit the new files in both folders. Never edit a migration that teammates have already applied; add a new one instead.
+Every change needs **both** migrations: SQLite (`Migrations/`) and PostgreSQL (`Migrations/Postgres`). Commit the new files in both folders. Check that the first one landed in `Migrations/` with SQLite types (`TEXT`, `INTEGER`): the design-time factories in `Data/DesignTimeFactories.cs` choose the database, and the SQLite one must stay first there (`DesignTimeTests`). Never edit a migration that teammates have already applied; add a new one instead.
 
 ## Tests
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TrackerApi.Models;
 
@@ -6,7 +7,7 @@ namespace TrackerApi.Data;
 // The DbContext is your gateway to the database (like JPA's EntityManager).
 // Each DbSet<T> is a table. The tables are created and changed by the
 // migrations in the Migrations folder (see README).
-public class TrackerDbContext : DbContext
+public class TrackerDbContext : DbContext, IDataProtectionKeyContext
 {
     public TrackerDbContext(DbContextOptions<TrackerDbContext> options) : base(options)
     {
@@ -29,6 +30,11 @@ public class TrackerDbContext : DbContext
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
+
+    // The keys that protect staff sign-in cookies. Only used when hosted (PostgreSQL, see
+    // Program.cs): a cloud container forgets its files on every restart, which would sign
+    // every staff member out. (On a PC at DTC, Windows keeps them in the user profile.)
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     // Store every enum as text ("Pending") instead of a number (0), so the
     // database is readable and adding a new enum value never shifts old data.

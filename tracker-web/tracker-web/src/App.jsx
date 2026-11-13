@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, isUnreachable } from './api'
+import { startPolling } from './polling.js'
 import HelpRequests from './components/HelpRequests.jsx'
 import WalkInDialog from './components/WalkInDialog.jsx'
 import AuditLog from './dashboard/AuditLog.jsx'
@@ -57,14 +58,8 @@ export default function App({ me, onSignOut }) {
 
   const load = useCallback(async () => {
     try {
-      const [computers, sessions, tickets, waitlist, problems, passes] = await Promise.all([
-        api.getComputers(),
-        api.getActiveSessions(),
-        api.getAssist(),
-        api.getWaitlist(),
-        api.getProblems({ status: 'Open' }),
-        api.getPasses('Pending'),
-      ])
+      // Everything the help desk shows, in one request (GET /api/board).
+      const { computers, sessions, tickets, waitlist, problems, passes } = await api.getBoard()
       setData({ computers, sessions, tickets, waitlist, problems, passes })
       setError('')
       setLoaded(true)
@@ -79,11 +74,8 @@ export default function App({ me, onSignOut }) {
     }
   }, [onSignOut])
 
-  useEffect(() => {
-    load()
-    const timer = setInterval(load, REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [load])
+  // Paused while the dashboard's tab is hidden (see polling.js).
+  useEffect(() => startPolling(load, REFRESH_MS), [load])
 
   function showToast(text, bad = false) {
     clearTimeout(toastTimer.current)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { startPolling } from '../polling.js'
 import { formatTime, parseUtc, serverNow } from '../time.js'
 
 // The current time, updated every second (for countdowns).
@@ -29,11 +30,8 @@ export function formatDuration(ms) {
 // "3:45 PM", Philippine time.
 export const formatClock = formatTime
 
-// Calls `load` now and then every `ms` milliseconds while the screen is shown.
+// Calls `load` now and then every `ms` milliseconds while the screen is shown
+// (paused while the phone is locked or the page is in the background; see polling.js).
 export function usePolling(load, ms) {
-  useEffect(() => {
-    load()
-    const timer = setInterval(load, ms)
-    return () => clearInterval(timer)
-  }, [load, ms])
+  useEffect(() => startPolling(load, ms), [load, ms])
 }

@@ -284,3 +284,13 @@ public record UpdateAssistStatusRequest(AssistStatus Status);
 
 public record PairKioskRequest(string? Code);
 public record KioskHelpRequest(string? Message);
+
+// GET /api/board: everything the help desk refreshes every few seconds, in one answer
+// (one request instead of six, which matters when each request is counted by the host).
+public record BoardDto(
+    List<ComputerDto> Computers,
+    List<SessionDto> Sessions,
+    List<AssistDto> Tickets,
+    List<WaitlistEntryDto> Waitlist,
+    List<ProblemReportDto> Problems,
+    List<StaffPassDto> Passes);

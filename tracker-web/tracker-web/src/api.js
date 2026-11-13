@@ -55,10 +55,11 @@ export const api = {
   changePassword: (currentPassword, newPassword) =>
     send('POST', '/api/auth/password', { currentPassword, newPassword }),
 
-  getComputers: () => request('/api/computers'),
+  // The help desk's refresh: computers, active sessions, help requests, waitlist,
+  // open problems and pending passes in one request.
+  getBoard: () => request('/api/board'),
   getComputerSessions: (computerId, limit = 50) =>
     request(`/api/computers/${computerId}/sessions?limit=${limit}`),
-  getActiveSessions: () => request('/api/sessions/active'),
   getSessions: (params) => request(`/api/sessions${query(params)}`),
   endSession: (sessionId) => send('POST', `/api/sessions/${sessionId}/end`),
   extendSession: (sessionId) => send('POST', `/api/sessions/${sessionId}/extend`),
@@ -66,13 +67,11 @@ export const api = {
   // Help desk: the QR holds the visit token; the 6-digit code is the backup.
   lookupPass: (pass) => send('POST', '/api/passes/lookup', pass),
   checkIn: (pass) => send('POST', '/api/passes/check-in', pass),
-  getPasses: (status) => request(`/api/passes${query({ status })}`),
 
   // Staff register a visitor at the desk. With computerId the session starts
   // right away; without it the visit is only logged.
   walkIn: (registration) => send('POST', '/api/visits/walk-in', registration),
   getVisits: (params) => request(`/api/visits${query(params)}`),
-  getWaitlist: () => request('/api/waitlist'),
 
   getProblems: (params) => request(`/api/problems${query(params)}`),
   openProblem: (computerId, description) => send('POST', '/api/problems', { computerId, description }),
@@ -81,7 +80,6 @@ export const api = {
   setPeripheralInUse: (peripheralId, inUse) =>
     send('PUT', `/api/peripherals/${peripheralId}/use`, { inUse }),
   createAssist: (computerId, message) => send('POST', '/api/assist', { computerId, message }),
-  getAssist: () => request('/api/assist'),
   setAssistStatus: (ticketId, status) =>
     send('PUT', `/api/assist/${ticketId}/status`, { status }),
 

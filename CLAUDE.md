@@ -59,7 +59,9 @@ The API project is the **inner** `TrackerApi/TrackerApi` folder; `dotnet run` el
 - The kiosk locks by itself when the tracker is unreachable (log out, idle, out of time + 30 s) and reports the reason later.
 - Help desk uses a keyboard-mode (HID) QR scanner; one help-desk unit. Don't show pass codes or tokens on staff screens: the visitor shows their own pass.
 - Kiosk staff PIN: 6+ characters enforced, 8+ recommended, hashed. The kiosk runs as the visitor's Windows account, so that account can read the hash and key; the setup script limits other accounts and removes the tools to get at them (DEPLOYMENT.md, "What this can't hide").
-- New tables/columns: add an EF migration (`dotnet tool restore`, then `dotnet dotnet-ef migrations add Name` in the inner API folder).
+- New tables/columns: add an EF migration (`dotnet tool restore`, then `dotnet dotnet-ef migrations add Name` in the inner API folder). The SQLite one must land in `Migrations/` with SQLite types: `Data/DesignTimeFactories.cs` picks the database, and the SQLite factory must stay first there (`DesignTimeTests`).
+- Rate limits count per device (`misa.device` cookie) with a shared cap per network address (`RateLimits:PerNetworkFactor`); hosted, all DTC phones share one public address.
+- Hosted, every request goes through Netlify's free plan (~1.5 M requests a month): polling must pause on hidden pages (`src/polling.js`) and the help desk refreshes with one `GET /api/board`.
 - Don't run the real kiosk .exe for testing on the dev PC: it writes its pairing to `C:\ProgramData\ComputerTracker`, which may hold the user's own pairing. Test `KioskApp/Core` through `KioskApp.Tests` (fake tracker, temp folders).
 - If a running API locks `bin/`, build elsewhere instead of killing it: `OutputPath=<temp>/ dotnet build` (also works for `dotnet test` and `dotnet dotnet-ef`). The user may have their own API running; don't stop processes you didn't start.
 - Local dev admin `devadmin`; its password is in `TrackerApi/TrackerApi/dev-credentials.local.txt` (git-ignored). Never put credentials in commits or chat.
