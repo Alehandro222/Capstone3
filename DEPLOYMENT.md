@@ -51,7 +51,7 @@ request; the API refuses anything unsigned, so nobody can go around the website.
 phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)──▶ Render (API) ──▶ Supabase
 ```
 
-1. **Supabase**: create a project (region: Singapore). Let Supabase generate the database
+1. **Supabase**: create a project (region: Singapore, or the nearest one Supabase offers, such as Seoul; a region can't be changed later). Let Supabase generate the database
    password (letters and digits: a `;` or `'` would break the connection string). *Connect →
    type **.NET** → **Session pooler*** (IPv4; Render has no IPv6). Put in the password and add
    `;SSL Mode=Require`. It looks like
@@ -67,7 +67,7 @@ phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)─�
    the staff sign-in keys there too, so a restart or a free-plan sleep doesn't sign staff out.
    Open `https://<service>.onrender.com/health` → `{"status":"ok"}`.
 4. **Netlify**: *Add new site → Import from Git*, **Base directory** `tracker-web/tracker-web`.
-   In `netlify.toml`, replace `YOUR-RENDER-SERVICE` with the Render service name and push.
+   `netlify.toml` points `/api/*` at `https://misa-api.onrender.com`; change it if your Render service has another name.
    *Site configuration → Environment variables*: `API_SIGNATURE_TOKEN` = the secret from step 2,
    scope **Runtime** (or "All").
 5. **First admin**: Render's free plan has no *Shell* tab, so create it from your own PC,

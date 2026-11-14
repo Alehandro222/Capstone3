@@ -13,10 +13,10 @@
 # talks to one address (the sign-in cookie just works, no CORS). Netlify signs each request
 # with API_SIGNATURE_TOKEN (set it in Netlify's environment variables, scope "Runtime");
 # the API refuses requests without that signature.
-# >>> Replace YOUR-RENDER-SERVICE with the Render service's name before deploying. <<<
+# The Render service (render.yaml: misa-api). Change it if Render gave the service another name.
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR-RENDER-SERVICE.onrender.com/api/:splat"
+  to = "https://misa-api.onrender.com/api/:splat"
   status = 200
   force = true
   signed = "API_SIGNATURE_TOKEN"
