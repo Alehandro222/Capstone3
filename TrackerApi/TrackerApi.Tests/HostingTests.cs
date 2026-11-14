@@ -105,6 +105,55 @@ public class HostingTests
     }
 
     [Fact]
+    public async Task Behind_netlify_the_visitor_is_the_address_netlify_names()
+    {
+        // Render puts Cloudflare and internal hops between Netlify and the API, so X-Forwarded-For
+        // can't be counted on; Netlify's own x-nf-client-connection-ip is used instead.
+        using var factory = new TrackerFactory(rateLimits: true, remoteIp: IPAddress.Parse("10.10.0.1"),
+            settings: new()
+            {
+                ["Hosting:ProxySignatureSecret"] = Secret,
+                ["Hosting:TrustedProxyHops"] = "1",
+                ["RateLimits:PerNetworkFactor"] = "1"
+            });
+
+        HttpClient Phone(string address)
+        {
+            var client = factory.Anonymous();
+            client.DefaultRequestHeaders.Add("x-nf-sign", NetlifyToken());
+            client.DefaultRequestHeaders.Add(HostingSetup.NetlifyClientIpHeader, address);
+            client.DefaultRequestHeaders.Add("X-Forwarded-For", "172.70.208.64"); // a Cloudflare hop
+            return client;
+        }
+
+        for (var i = 0; i < 6; i++) await Phone("203.0.113.5").Register($"Ana{i}", "Reyes");
+        Assert.Equal(HttpStatusCode.TooManyRequests,
+            (await Phone("203.0.113.5").Post("/api/visits", ApiExtensions.Registration())).StatusCode);
+
+        // Another visitor arriving through the same Cloudflare hop has their own limit.
+        await Phone("198.51.100.9").Register("Ben", "Cruz");
+    }
+
+    [Fact]
+    public async Task Without_netlify_signatures_the_netlify_address_header_is_ignored()
+    {
+        // On a PC at DTC anyone could send the header, so it means nothing there.
+        using var factory = new TrackerFactory(rateLimits: true,
+            settings: new() { ["RateLimits:PerNetworkFactor"] = "1" });
+
+        HttpClient Phone(string address)
+        {
+            var client = factory.Anonymous();
+            client.DefaultRequestHeaders.Add(HostingSetup.NetlifyClientIpHeader, address);
+            return client;
+        }
+
+        for (var i = 0; i < 6; i++) await Phone($"203.0.113.{i}").Register($"Ana{i}", "Reyes");
+        Assert.Equal(HttpStatusCode.TooManyRequests,
+            (await Phone("198.51.100.9").Post("/api/visits", ApiExtensions.Registration())).StatusCode);
+    }
+
+    [Fact]
     public async Task On_the_internet_http_goes_to_https_and_the_sign_in_cookie_is_https_only()
     {
         using var factory = new TrackerFactory(remoteIp: IPAddress.Parse("10.10.0.1"),

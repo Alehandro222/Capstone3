@@ -21,7 +21,7 @@ services:
       - key: Hosting__RequireHttps
         value: "true"
       - key: Hosting__TrustedProxyHops
-        value: "2"               # visitor -> Netlify -> Render
+        value: "1"               # https detection only; the visitor's address comes from Netlify's header
       - key: Hosting__ProxySignatureSecret
         sync: false              # the same value as API_SIGNATURE_TOKEN on Netlify
       - key: Backup__Enabled

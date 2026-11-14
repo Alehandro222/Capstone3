@@ -145,7 +145,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 
 Limits count per **device**: the API gives each browser and kiosk app a random `misa.device` cookie (HttpOnly, 30 days, nothing stored with it) and counts each limit per cookie. A script can throw its cookie away, so every network address also has a shared cap of `PerNetworkFactor` times the limit. Hosted, every phone on DTC's Wi-Fi shares DTC's one public address, so that cap is the limit for the whole centre (60 registrations in 10 minutes by default; raise `PerNetworkFactor` for a big event).
 
-Phones reach the API through the website's server, which passes each phone's real address in `X-Forwarded-For`; the API uses it **only when the request comes from this same machine** (so a phone can't fake its address), or, when hosted, from the `Hosting:TrustedProxyHops` proxies in front of it (`Auth/HostingSetup.cs`). The audit log records the same address.
+Phones reach the API through the website's server, which passes each phone's real address in `X-Forwarded-For`; the API uses it **only when the request comes from this same machine** (so a phone can't fake its address), or, when hosted, from the `Hosting:TrustedProxyHops` proxies in front of it (`Auth/HostingSetup.cs`). Behind Netlify (with `Hosting:ProxySignatureSecret`), it uses Netlify's `x-nf-client-connection-ip` header instead, since only signed requests get in. The audit log records the same address.
 
 The 20-minute idle logout is set in the kiosk app (`idleTimeoutSeconds` in `kiosk.settings.json`), because only the PC knows when its keyboard and mouse were last used.
 
@@ -157,7 +157,7 @@ How to deploy (a PC at DTC, or Netlify + Render + Supabase) is in **[DEPLOYMENT.
 |---|---|---|
 | `Database:Provider` | `Sqlite` (one file; a PC at DTC) or `Postgres` (Supabase). PostgreSQL has its own migrations in `Migrations/Postgres` (`PostgresTrackerDbContext`). With `Postgres`, the keys behind the staff sign-in cookie are kept in the database (`DataProtectionKeys` table), so restarting the container doesn't sign everyone out; with SQLite, Windows keeps them in the user profile. | `Sqlite` |
 | `ConnectionStrings:Default` | `Data Source=tracker.db`, or the Supabase session-pooler connection string | `Data Source=tracker.db` |
-| `Hosting:TrustedProxyHops` | How many proxies add themselves to `X-Forwarded-For`. `0` = only a proxy on this machine (the Vite dev server); Netlify → Render = `2`. | `0` |
+| `Hosting:TrustedProxyHops` | How many proxies add themselves to `X-Forwarded-For`. `0` = only a proxy on this machine (the Vite dev server); Netlify → Render = `1` (https detection only; the address comes from Netlify's header). | `0` |
 | `Hosting:ProxySignatureSecret` | When set, every request must carry Netlify's signature (`x-nf-sign`, HMAC-SHA256 with this secret); others get **403**, except `GET /health`. | empty |
 | `Hosting:RequireHttps` | On the internet: http → https, HSTS, sign-in cookie HTTPS-only | `false` |
 | `Backup:Enabled` / `Folder` / `KeepDays` | Daily copy of the SQLite database (`VACUUM INTO`, while running) as `tracker-YYYY-MM-DD.db`; copies older than `KeepDays` are deleted, and never kept longer than `Tracker:KeepVisitsDays`. Audited as `backup.created`. SQLite only. | `true` / `backups` / `30` |

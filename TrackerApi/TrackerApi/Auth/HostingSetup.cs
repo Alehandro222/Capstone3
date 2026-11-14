@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,15 +11,17 @@ namespace TrackerApi.Auth;
 //   On this PC / a PC at DTC (defaults): requests come straight from phones and kiosks,
 //   or through the website's dev server on the same machine.
 //   Hosted (Netlify -> Render): Render sets these as environment variables, e.g.
-//     Hosting__TrustedProxyHops=2  Hosting__RequireHttps=true  Hosting__ProxySignatureSecret=<secret>
+//     Hosting__TrustedProxyHops=1  Hosting__RequireHttps=true  Hosting__ProxySignatureSecret=<secret>
 public class HostingOptions
 {
     public const string Section = "Hosting";
 
     // How many proxies in front of the API add themselves to X-Forwarded-For.
     // 0 = trust only a proxy on this same machine (the Vite dev server).
-    // Netlify -> Render = 2. Only set this when the API can't be reached any other way,
-    // or together with ProxySignatureSecret, or visitors could fake their address.
+    // Only set this when the API can't be reached any other way, or together with
+    // ProxySignatureSecret, or visitors could fake their address. Behind Netlify (with
+    // ProxySignatureSecret) the visitor's address comes from Netlify's own header instead,
+    // so the count only matters for https detection (X-Forwarded-Proto): 1 is enough there.
     public int TrustedProxyHops { get; set; }
 
     // The secret Netlify signs proxied requests with (netlify.toml: signed = "API_SIGNATURE_TOKEN").
@@ -33,6 +36,9 @@ public class HostingOptions
 public static class HostingSetup
 {
     public const string HealthPath = "/health";
+
+    // The address Netlify received the request from (the visitor's phone or PC).
+    public const string NetlifyClientIpHeader = "x-nf-client-connection-ip";
 
     public static void UseTrackerHosting(this WebApplication app)
     {
@@ -68,6 +74,11 @@ public static class HostingSetup
                     await ctx.Response.WriteAsJsonAsync(new { message = "Please use the MISA website address." });
                     return;
                 }
+                // Netlify names the visitor itself. Counting X-Forwarded-For hops isn't reliable
+                // behind Render (Cloudflare and internal hops in between, varying in number), and
+                // this header can't be forged: the request is signed, so it came from Netlify.
+                if (!isHealth && IPAddress.TryParse(ctx.Request.Headers[NetlifyClientIpHeader].ToString(), out var visitor))
+                    ctx.Connection.RemoteIpAddress = visitor;
                 await next();
             });
         }

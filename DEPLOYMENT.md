@@ -82,8 +82,11 @@ phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)─�
 6. **Check after the first deploy**:
    - `https://<service>.onrender.com/api/public/computers` directly → **403** (unsigned: good).
    - Sign in at `https://<site>.netlify.app`, register on a phone, then *Audit log*: the IP
-     address column should show the phone's public address, not a Netlify/Render one. If it
-     shows a Netlify address, set `Hosting__TrustedProxyHops` to `3`; if it is blank or odd, `1`.
+     address column should show the phone's public address, not a Netlify, Cloudflare or
+     Render one. The API takes it from Netlify's `x-nf-client-connection-ip` header (trusted
+     only on signed requests): counting `X-Forwarded-For` hops doesn't work, because Render
+     puts Cloudflare and internal hops in front of the API (seen at 2, 3 and 4 hops: Cloudflare,
+     Netlify's Singapore servers, `100.64.x`). `Hosting__TrustedProxyHops` = `1` is enough.
    - Kiosks: `apiUrl: https://<site>.netlify.app/`, `visitorUrl: https://<site>.netlify.app/#/visit`,
      and `refreshSeconds: 15` (see "Request budget" below).
    - Restart the service (*Manual Deploy → Restart*): staff who were signed in stay signed in.
