@@ -285,7 +285,7 @@ On a server, set the environment variable `Gemini__ApiKey` instead (on Render: *
 |---|---|---|
 | `ApiKey` | The Google AI Studio key. Empty = the assistant is switched off and says how to set it up. | empty |
 | `Model` | Which Gemini model writes the draft. Free-tier models and their limits change; check AI Studio. | `gemini-2.5-flash` |
-| `TimeoutSeconds` | How long to wait for Gemini | `90` |
+| `TimeoutSeconds` | How long to wait for Gemini (hosted behind Netlify: `20`, set in `render.yaml`, because Netlify gives up after 26 s) | `90` |
 
 Free-tier limits are per Google project and change often (Google calls them "best effort"); a monthly report needs only a few requests. Over the limit, the page says "Gemini's free limit was reached" and nothing else happens.
 

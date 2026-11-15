@@ -28,3 +28,5 @@ services:
         value: "false"           # SQLite-only; Supabase holds the data
       - key: Gemini__ApiKey
         sync: false              # optional: the report assistant
+      - key: Gemini__TimeoutSeconds
+        value: "20"              # Netlify gives up on /api/* after 26 s; fail with a clear message first

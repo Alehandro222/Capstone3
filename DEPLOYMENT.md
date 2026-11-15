@@ -63,7 +63,8 @@ phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)─�
    (not `Get-Random`, which isn't meant for secrets).
 3. **Render**: *New → Blueprint →* this repository (`render.yaml`). Fill in:
    `ConnectionStrings__Default` (step 1), `Hosting__ProxySignatureSecret` (step 2),
-   optionally `Gemini__ApiKey`. Deploy. The API creates the tables on first start, and keeps
+   optionally `Gemini__ApiKey` (with `Gemini__TimeoutSeconds` = `20`, already in `render.yaml`:
+   Netlify gives up on a request after 26 s). Deploy. The API creates the tables on first start, and keeps
    the staff sign-in keys there too, so a restart or a free-plan sleep doesn't sign staff out.
    Open `https://<service>.onrender.com/health` → `{"status":"ok"}`.
 4. **Netlify**: *Add new site → Import from Git*, **Base directory** `tracker-web/tracker-web`.
