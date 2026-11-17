@@ -23,6 +23,12 @@ builder.Services
 var connection = builder.Configuration.GetConnectionString("Default");
 if (string.Equals(builder.Configuration["Database:Provider"], "Postgres", StringComparison.OrdinalIgnoreCase))
 {
+    // PostgreSQL means hosted: without the Netlify secret the API would silently accept unsigned
+    // requests and count every visitor as one address. Refuse to start instead.
+    if (string.IsNullOrEmpty(builder.Configuration["Hosting:ProxySignatureSecret"]))
+        throw new InvalidOperationException(
+            "Hosting__ProxySignatureSecret is not set. Set it to the same value as API_SIGNATURE_TOKEN on Netlify.");
+
     builder.Services.AddDbContext<TrackerDbContext, PostgresTrackerDbContext>(options =>
         // (No automatic retries: they refuse the explicit transactions the services use.)
         options.UseNpgsql(connection));

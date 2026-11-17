@@ -53,7 +53,10 @@ public class ComputerStatusService
     // using it, when their session ends, any open problem, and peripherals.
     public async Task<List<ComputerDto>> GetStaffViewAsync(int? id)
     {
-        var statuses = await GetAllAsync();
+        // One PC (a kiosk heartbeat) needs only its own status, not all of them.
+        var statuses = id is int one
+            ? new Dictionary<int, ComputerStatus> { [one] = await GetAsync(one) }
+            : await GetAllAsync();
 
         // Running sessions with the visitor's name and services.
         var active = (await _db.Sessions

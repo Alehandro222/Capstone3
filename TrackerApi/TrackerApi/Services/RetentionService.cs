@@ -33,6 +33,10 @@ public class RetentionService
         if (_options.KeepVisitsDays <= 0) return 0;
 
         var cutoff = _clock.UtcNow().AddDays(-_options.KeepVisitsDays);
+
+        // The audit log is kept as long as the visits, then trimmed (anyone can add failed-login rows).
+        await _db.AuditLog.Where(a => a.At < cutoff).ExecuteDeleteAsync();
+
         var ids = await _db.Visits
             .Where(v => v.CreatedAt < cutoff)
             .Where(v => !v.Sessions.Any(s => s.EndedAt == null)) // never pull a running session out from under a PC

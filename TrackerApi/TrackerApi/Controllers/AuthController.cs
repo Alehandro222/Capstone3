@@ -33,8 +33,9 @@ public class AuthController : ControllerBase
         var result = await _staff.CheckPasswordAsync(request.Username, request.Password);
         if (result.Error is not null)
         {
+            // No typed text is saved: staff sometimes type their password into the username box.
             await _audit.RecordAsAsync(ActorType.Visitor, null, "Unknown", "auth.login_failed",
-                "Staff", result.Staff?.Id, $"username: {request.Username?.Trim()}");
+                "Staff", result.Staff?.Id);
             return Unauthorized(new { message = result.Error });
         }
 

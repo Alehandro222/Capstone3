@@ -97,7 +97,7 @@ Pairing a PC again, or `POST /api/computers/{id}/unpair`, cancels its old key at
 
 ### Audit log
 
-Every staff and kiosk action is recorded in the `AuditLog` table: who, what, which record, when, and from which IP address. Admins read it with `GET /api/audit`. Rows are never changed or deleted. Recorded actions:
+Every staff and kiosk action is recorded in the `AuditLog` table: who, what, which record, when, and from which IP address. Admins read it with `GET /api/audit`. Rows are never changed; the cleanup job deletes those older than `KeepVisitsDays`. A failed sign-in saves no typed text. Recorded actions:
 
 - `auth.*`: sign-ins, failed sign-ins, sign-outs, password changes
 - `staff.*`: account changes
@@ -122,7 +122,7 @@ Every staff and kiosk action is recorded in the `AuditLog` table: who, what, whi
 | `ExtensionMinutes` | Time added per extension | `60` |
 | `MaxExtensions` | Extensions allowed per session | `2` |
 | `ExtendWindowMinutes` | Extending is allowed only in the last N minutes | `10` |
-| `OfflineAfterSeconds` | No heartbeat for this long → Offline | `30` |
+| `OfflineAfterSeconds` | No heartbeat for this long → Offline (hosted: `75`, set in render.yaml) | `30` |
 | `RequireHeartbeat` | `false` = never Offline (development only) | `true` |
 | `WaitlistLifetimeMinutes` | Waitlist entries are dropped after this long | `240` |
 | `WaitlistOfferMinutes` | A freed PC is held this long for the first person waiting | `5` |

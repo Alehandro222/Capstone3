@@ -26,6 +26,8 @@ services:
         sync: false              # the same value as API_SIGNATURE_TOKEN on Netlify
       - key: Backup__Enabled
         value: "false"           # SQLite-only; Supabase holds the data
+      - key: Tracker__OfflineAfterSeconds
+        value: "75"              # the kiosk's 15 s heartbeat crosses three servers; 30 s flips PCs to Offline
       - key: Gemini__ApiKey
         sync: false              # optional: the report assistant
       - key: Gemini__TimeoutSeconds

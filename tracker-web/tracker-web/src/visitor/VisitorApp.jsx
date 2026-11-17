@@ -82,7 +82,9 @@ export default function VisitorApp() {
       setLoading(false)
     }
   }, [token, forget])
-  usePolling(loadVisit, 3000)
+  // Fast only while something is happening (a pass, a session, a waitlist place): hosted, Netlify counts every request.
+  const busy = visit?.pass?.status === 'Pending' || (visit?.session && !visit.session.endedAt) || !!visit?.waitlist
+  usePolling(loadVisit, busy ? 3000 : 10000)
 
   // Free computers, for the welcome screen.
   const loadCounts = useCallback(async () => {
