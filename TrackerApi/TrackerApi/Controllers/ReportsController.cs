@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TrackerApi.Data;
 using TrackerApi.Auth;
 using TrackerApi.Models;
 using TrackerApi.Services;
@@ -15,12 +17,19 @@ public class ReportsController : ControllerBase
     private readonly ReportService _reports;
     private readonly AuditService _audit;
     private readonly ReportAssistant _assistant;
+    private readonly ReportRunner _runner;
+    private readonly ReportRunQueue _queue;
+    private readonly TrackerDbContext _db;
 
-    public ReportsController(ReportService reports, AuditService audit, ReportAssistant assistant)
+    public ReportsController(ReportService reports, AuditService audit, ReportAssistant assistant,
+        ReportRunner runner, ReportRunQueue queue, TrackerDbContext db)
     {
         _reports = reports;
         _audit = audit;
         _assistant = assistant;
+        _runner = runner;
+        _queue = queue;
+        _db = db;
     }
 
     // GET api/reports/assistant -> is the Gemini report assistant set up? (admin)
@@ -28,20 +37,45 @@ public class ReportsController : ControllerBase
     [Authorize(Policy = Policies.Admin)]
     public AssistantStatusDto AssistantStatus() => new(_assistant.IsConfigured, _assistant.Model);
 
-    // POST api/reports/assistant   body: { "from": "2026-11-01", "to": "2026-11-30" }   (admin)
-    // Drafts the period's report with Gemini. Sends ONLY the summary's counts (no names,
-    // no individual records, no free text); returns the draft and exactly what was sent.
-    [HttpPost("assistant")]
+    // POST api/reports/runs   body: { "kind": "Month", "date": "2026-11-15" }   (admin)
+    // Starts a day / week / month report as a background job and returns at once; the page checks
+    // on it with GET api/reports/runs/{id}. `date` is any day inside the period (default: today).
+    // Only counts are ever sent to Gemini (ReportAssistant.Facts).
+    [HttpPost("runs")]
     [Authorize(Policy = Policies.Admin)]
-    public async Task<AssistantDraftDto> Assistant(AssistantRequest request, CancellationToken ct)
+    public async Task<ReportRunDto> StartRun(ReportRunRequest request)
     {
-        var (start, end) = _reports.Range(request.From, request.To);
-        var facts = ReportAssistant.Facts(await _reports.SummaryAsync(start, end));
-        var draft = await _assistant.DraftAsync(facts, ct);
+        var run = await _runner.CreateAsync(request.Kind, request.Date);
+        await _audit.RecordAsync("report.assistant", "ReportRun", run.Id,
+            $"{request.Kind} {run.From:yyyy-MM-dd} to {run.To:yyyy-MM-dd}, {(request.Kind == ReportKind.Day ? "no Gemini" : _assistant.Model + " (counts only)")}");
+        _queue.Enqueue(run.Id);
+        return ReportRunner.ToDto(run);
+    }
 
-        await _audit.RecordAsync("report.assistant", null, null,
-            $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}, {_assistant.Model} (counts only)");
-        return new AssistantDraftDto(start, end, _assistant.Model, draft, facts);
+    // GET api/reports/runs -> the saved reports, newest first (admin)
+    [HttpGet("runs")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<List<ReportRunListItemDto>> Runs() =>
+        await _db.ReportRuns.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(50)
+            .Select(r => new ReportRunListItemDto(r.Id, r.Kind, r.From, r.To, r.Status, r.Note, r.CreatedAt, r.FinishedAt))
+            .ToListAsync();
+
+    // GET api/reports/runs/{id} -> progress, and the finished report (admin)
+    [HttpGet("runs/{id:int}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<ReportRunDto> Run(int id) =>
+        ReportRunner.ToDto(await _db.ReportRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id)
+            ?? throw TrackerException.NotFound("There is no such report."));
+
+    // DELETE api/reports/runs/{id} (admin)
+    [HttpDelete("runs/{id:int}")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> DeleteRun(int id)
+    {
+        var run = await _db.ReportRuns.FindAsync(id) ?? throw TrackerException.NotFound("There is no such report.");
+        _db.ReportRuns.Remove(run);
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     // GET api/reports/summary?from=2026-11-01&to=2026-11-30

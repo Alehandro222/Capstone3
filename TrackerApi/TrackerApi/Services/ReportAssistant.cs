@@ -48,21 +48,29 @@ public class ReportAssistant
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.ApiKey);
     public string Model => _options.Model;
 
-    public const string Instructions =
-        "You write the monthly activity report of the DICT Digital Transformation Center (DTC) in Baguio City, " +
-        "Philippines: a public center with computers, Wi-Fi, a co-working space and eGov help. The reader is " +
-        "DICT-CAR management. You receive only aggregated counts as JSON.\n\n" +
-        "Rules:\n" +
-        "- Use only the numbers given. Never invent, estimate or extrapolate a number. If a figure is 0, say so plainly.\n" +
-        "- Do not guess causes. You may add a short 'Suggestions' section; label everything there as a suggestion.\n" +
-        "- A visitor can tick several sectors and services, so those totals can exceed the number of visits; say so if you compare them.\n" +
-        "- Times are Philippine time. Hours of the day are 24-hour (13 = 1 PM).\n" +
-        "- Formal, clear English for a government report. About 350 to 600 words.\n" +
-        "- Format: Markdown with '## ' headings and '- ' bullet points only. No tables, no other formatting.\n" +
-        "- Sections, in this order: Summary; Visitors; Services availed; Computer use; Waitlist; Suggestions.";
+    // The standing instructions. `kind` says which period the report covers.
+    public static string Instructions(ReportKind kind)
+    {
+        var period = kind == ReportKind.Week ? "weekly" : "monthly";
+        return
+            $"You write the narrative part of the {period} activity report of the DICT Digital Transformation Center (DTC) in Baguio City, " +
+            "Philippines: a public center with computers, Wi-Fi, a co-working space and eGov help. The reader is " +
+            "DICT-CAR management. You receive only aggregated counts as JSON. The report's tables are added separately, so do not make tables.\n\n" +
+            "Rules:\n" +
+            "- Use only the numbers given, written as digits exactly as given (12.5 stays 12.5; do not round). Never calculate, estimate or extrapolate: " +
+            "do not add, subtract or average anything yourself. Percentages, changes and busiest times are already given: quote them. If a figure is 0, say so plainly.\n" +
+            "- Leave out any fact you cannot state with the given numbers. Do not use number words (write 3, not three) and do not number your list items.\n" +
+            "- Do not guess causes. You may add a short 'Suggestions' section; label everything there as a suggestion.\n" +
+            "- A visitor can tick several sectors and services, so those totals can exceed the number of visits; say so if you compare them.\n" +
+            "- Times are Philippine time. Write hours as given, e.g. 13:00. Do not convert them.\n" +
+            "- Formal, clear English for a government report. About 250 to 450 words.\n" +
+            "- Format: Markdown with '## ' headings and '- ' bullet points only. No tables, no other formatting.\n" +
+            "- Sections, in this order: Summary; Visitors; Services availed; Computer use; Waitlist; Compared with the previous period; Suggestions.";
+    }
 
     // The anonymous facts for a report period, exactly as they are sent to Gemini.
-    public static string Facts(ReportDto r)
+    // `before` and `comparison` (the previous period and the code-made differences) are optional.
+    public static string Facts(ReportDto r, ReportDto? before = null, IReadOnlyList<ComparisonRowDto>? comparison = null)
     {
         static Dictionary<string, int> Labeled<T>(IEnumerable<CountDto> counts, Func<T, string> label) where T : struct, Enum =>
             counts.ToDictionary(c => label(Enum.Parse<T>(c.Key)), c => c.Count);
@@ -85,6 +93,8 @@ public class ReportAssistant
             },
             visitsPerDay = r.ByDay.ToDictionary(d => d.Day.ToString("yyyy-MM-dd"), d => d.Visits),
             computerSessionsPerDay = r.ByDay.ToDictionary(d => d.Day.ToString("yyyy-MM-dd"), d => d.Sessions),
+            busiestDay = ReportMath.BusiestDay(r) is { } bd ? new { date = bd.Day.ToString("yyyy-MM-dd"), visits = bd.Visits } : null,
+            busiestHourOfDay = ReportMath.BusiestHour(r) is { } bh ? new { hour = bh.Hour, visits = bh.Visits } : null,
             visitsByHourOfDay = Hours(r.VisitsByHour),
             computerSessionsByHourOfDay = Hours(r.SessionsByHour),
             visitorsByAgeGroup = Labeled<AgeGroup>(r.ByAgeGroup, Labels.Of),
@@ -93,6 +103,13 @@ public class ReportAssistant
             servicesAvailed = Labeled<ServiceAvailed>(r.ByService, Labels.Of),
             registeredBy = Labeled<VisitSource>(r.BySource, Labels.Of),
             howComputerSessionsEnded = Labeled<SessionEndReason>(r.SessionEndReasons, Labels.Of),
+            percentOfVisits = new
+            {
+                ageGroup = ReportMath.Percents(r.ByAgeGroup, r.Visits, k => Labels.Of(Enum.Parse<AgeGroup>(k))),
+                sex = ReportMath.Percents(r.BySex, r.Visits, k => Labels.Of(Enum.Parse<Sex>(k))),
+                sector = ReportMath.Percents(r.BySector, r.Visits, k => Labels.Of(Enum.Parse<Sector>(k))),
+                service = ReportMath.Percents(r.ByService, r.Visits, k => Labels.Of(Enum.Parse<ServiceAvailed>(k)))
+            },
             computers = r.ByComputer.Select(c => new { computer = c.Name, sessions = c.Sessions, hours = c.Hours }),
             waitlist = new
             {
@@ -101,13 +118,21 @@ public class ReportAssistant
                 missedTheirTurn = r.Waitlist.MissedTurn,
                 waitedTooLong = r.Waitlist.Expired,
                 leftTheLine = r.Waitlist.Left
+            },
+            comparedWithPreviousPeriod = before is null || comparison is null ? null : new
+            {
+                from = before.From.ToString("yyyy-MM-dd"),
+                to = before.To.ToString("yyyy-MM-dd"),
+                days = before.ByDay.Count,
+                rows = comparison.Select(c => new { measure = c.Measure, now = c.Now, before = c.Before, change = c.Change, changePercent = c.ChangePercent })
             }
         };
         return JsonSerializer.Serialize(facts, Json);
     }
 
     // Asks Gemini for a draft. Throws TrackerException with a message staff can act on.
-    public async Task<string> DraftAsync(string facts, CancellationToken ct = default)
+    // `unknownNumbers`: on a second try, the figures the first draft used that are not in the data.
+    public async Task<string> DraftAsync(ReportKind kind, string facts, IReadOnlyList<string>? unknownNumbers = null, CancellationToken ct = default)
     {
         if (!IsConfigured)
             throw new TrackerException(503,
@@ -115,13 +140,13 @@ public class ReportAssistant
 
         var body = new
         {
-            systemInstruction = new { parts = new[] { new { text = Instructions } } },
+            systemInstruction = new { parts = new[] { new { text = Instructions(kind) } } },
             contents = new[]
             {
                 new
                 {
                     role = "user",
-                    parts = new[] { new { text = "Write the report for this period from these counts:\n\n" + facts } }
+                    parts = new[] { new { text = Retry(unknownNumbers) + "Write the report for this period from these counts:\n\n" + facts } }
                 }
             },
             generationConfig = new { temperature = 0.3 }
@@ -169,6 +194,12 @@ public class ReportAssistant
             return draft.Trim();
         }
     }
+
+    private static string Retry(IReadOnlyList<string>? unknown) =>
+        unknown is { Count: > 0 }
+            ? "Your previous draft used these numbers, which are not in the data: " + string.Join(", ", unknown) +
+              ". Write the report again and use only numbers that appear in the counts below.\n\n"
+            : "";
 
     // candidates[0].content.parts[*].text
     private static string ReadText(string json)

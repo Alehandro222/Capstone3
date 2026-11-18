@@ -213,7 +213,9 @@ Errors always come back as `{ "message": "..." }`, written so the frontend can s
 | PUT | `/api/problems/{id}/resolve` | Resolve it, with optional `{ "notes": "..." }` |
 | GET | `/api/waitlist` | Everyone waiting, in order |
 | GET | `/api/reports/summary` | Counts for a range of days (`?from=2026-11-01&to=2026-11-30`, both included, days in `TimeZone`; default today; at most 366 days): see Reports |
-| GET / POST | `/api/reports/assistant` | **Admin.** GET: is the Gemini assistant set up, and which model. POST `{ from, to }`: a draft of the period's report written by Gemini, plus exactly what was sent (see Report assistant) |
+| GET | `/api/reports/assistant` | **Admin.** Is the Gemini assistant set up, and which model |
+| POST / GET | `/api/reports/runs`, `/api/reports/runs/{id}` | **Admin.** POST `{ kind: Day|Week|Month, date }` starts a report as a background job (returns at once); GET shows its progress and, when done, the finished report (see Report runs) |
+| GET / DELETE | `/api/reports/runs`, `/api/reports/runs/{id}` | **Admin.** The saved reports (newest 50) / delete one |
 | GET | `/api/reports/export` | Download: `?format=xlsx` (summary and days), `&names=true` adds the visitor and session lists (**admin**); `?format=csv&table=summary\|days\|visits\|sessions` (visits/sessions: **admin**) |
 | GET / POST | `/api/assist` | Help requests (`?status=Open`) / create one `{ computerId, message }` (500 characters max) |
 | PUT | `/api/assist/{id}/status` | `{ status }`: Open, InProgress or Resolved |
@@ -264,13 +266,24 @@ Sessions count on the day they **started**. A running session counts until now, 
 
 **Exports** (`/api/reports/export`): any staff member can download the counts (Excel with *Summary* and *By day* sheets, or CSV). The **lists with names** (Excel *Visits* and *PC sessions* sheets, or the `visits` / `sessions` CSV) are **admin only** (Data Privacy Act: least access). Every download is recorded in the audit log as `report.export`, with "with names" when it held any. CSVs are UTF-8 with a BOM, so Excel shows "ñ" correctly, and a cell that starts with `=`, `+`, `-` or `@` gets a leading `'`, so a name typed as a formula stays text. Times in exports are Philippine time.
 
-## Report assistant (Gemini)
+## Report assistant (Gemini) and report runs
 
-Admins can have **Google Gemini** draft the report for a period (Reports tab → *Report draft by Gemini*). DTC's partner asked for Gemini on the free tier, and Google may use what its free tier receives, so:
+Admins make a **daily, weekly or monthly report** on the Reports tab (*Report for DICT-CAR*). DTC's partner asked for Gemini on the free tier, and Google may use what its free tier receives, so:
 
-- **Only the summary's counts are sent**: totals, per day, per hour, age group, sex, sector, services, how visitors registered, how sessions ended, hours per PC, the waitlist. There are no names, no individual visits or sessions, and no box where staff type free text that could hold a name.
-- The page shows **exactly what was sent** next to the draft, and every request is recorded in the audit log as `report.assistant`.
-- The draft is a starting point: staff check the numbers and edit it before sending it on.
+- **Only the summary's counts are sent** (`ReportAssistant.Facts` is the single gate): totals, per day, per hour, age group, sex, sector, services, how visitors registered, how sessions ended, hours per PC, the waitlist, the previous period's totals and the differences, busiest day and hour, and each answer as a percentage of visits. No names, no individual visits or sessions, and no box where staff type free text. `AssistantTests` check that no name reaches Google or the saved report.
+- The page shows **exactly what was sent** next to the report, and every run is recorded in the audit log as `report.assistant`.
+
+### Report runs
+
+`POST /api/reports/runs { kind, date }` starts a run and returns at once (status `Queued`); the page then fetches `GET /api/reports/runs/{id}` every 4 s while it is open and visible. A background worker does the steps, one report at a time:
+
+1. **Period** (Manila calendar days): a day; a **week = Monday to Sunday**; a month = the 1st to the last day. `date` is any day inside it (default today). A period that is not over is counted up to today and marked *not over yet*. A period starting more than `KeepVisitsDays` ago is refused (those visits are deleted, so the counts would be incomplete); a future one too.
+2. **Counts** for the period and for the previous one (the whole previous period, or the same number of days when this one is not over). The comparison table (difference, percentage) is computed by code, as is every table in the report.
+3. **Draft** (weekly and monthly only): Gemini gets the counts and writes the text only. *Daily reports are written by code and never contact Gemini.*
+4. **Number check:** every figure in the draft must also appear in the facts that were sent (`ReportMath.UnknownNumbers`: digits only, exact as given, no rounding). If one does not, Gemini gets one more try that names the bad numbers. If the second draft also fails, the report keeps its figures and tables but **leaves the text out**, with a note saying which numbers were rejected. Number words ("three") are not checked: the instructions forbid them.
+5. **Saved** in `ReportRuns` (counts and text only, never names), so it outlives the 1-year deletion of visit records. If Gemini is not set up, is over its limit or fails, the report is still made, without text, and says why.
+
+A run lost when the server restarts is marked *Failed* at the next start (Render free restarts often). Only one report is made at a time (409 otherwise). The page's *Print / save as PDF* prints just the report.
 
 **Set it up:** create a free API key in [Google AI Studio](https://aistudio.google.com/apikey), then give it to the API, never in a committed file:
 
@@ -285,9 +298,9 @@ On a server, set the environment variable `Gemini__ApiKey` instead (on Render: *
 |---|---|---|
 | `ApiKey` | The Google AI Studio key. Empty = the assistant is switched off and says how to set it up. | empty |
 | `Model` | Which Gemini model writes the draft. Free-tier models and their limits change; check AI Studio. | `gemini-2.5-flash` |
-| `TimeoutSeconds` | How long to wait for Gemini (hosted behind Netlify: `20`, set in `render.yaml`, because Netlify gives up after 26 s) | `90` |
+| `TimeoutSeconds` | How long to wait for each Gemini call. Runs are in the background, so the website's 26 s limit does not apply (`60` in `render.yaml`); a report makes at most two calls | `90` |
 
-Free-tier limits are per Google project and change often (Google calls them "best effort"); a monthly report needs only a few requests. Over the limit, the page says "Gemini's free limit was reached" and nothing else happens.
+Free-tier limits are per Google project and change often (Google calls them "best effort"); a report needs one or two requests. Over the limit, the report is made without the written text and says "Gemini's free limit was reached".
 
 ## Database rules
 

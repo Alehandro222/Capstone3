@@ -1,23 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { AGE_GROUPS, SECTORS, SERVICES, SEXES } from '../registration.js'
 import { todayInManila } from '../time.js'
-import { END_REASON_LABEL, SOURCE_LABEL } from './format.js'
 import { PERIODS, dayLabel, hourLabel, monthStart, periodRange } from './periods.js'
-import ReportAssistant from './ReportAssistant.jsx'
+import { LABELS, fmt } from './reportLabels.js'
+import ReportRuns from './ReportRuns.jsx'
 import { Empty } from './ui.jsx'
-
-const label = (options) => Object.fromEntries(options.map((o) => [o.value, o.label]))
-const LABELS = {
-  age: label(AGE_GROUPS),
-  sex: label(SEXES),
-  sector: label(SECTORS),
-  service: label(SERVICES),
-  source: SOURCE_LABEL,
-  end: END_REASON_LABEL,
-}
-
-const fmt = (n) => n.toLocaleString('en-PH', { maximumFractionDigits: 1 })
 
 // Reports: visits and PC use for a period, counted in Philippine time.
 // Counts only on screen; the lists with names are in the admin exports.
@@ -165,7 +152,7 @@ export default function Reports({ isAdmin, refreshKey }) {
             </>
           )}
 
-          {isAdmin && <ReportAssistant from={r.from} to={r.to} />}
+          {isAdmin && <ReportRuns />}
 
           <section className="panel">
             <h3>Download</h3>

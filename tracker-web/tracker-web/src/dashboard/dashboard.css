@@ -273,7 +273,7 @@ a.link-button { display: inline; }
 .table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .h3-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
 
-/* Report draft by Gemini */
+/* Day / week / month report (screen and print) */
 .assistant .draft {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -295,6 +295,28 @@ a.link-button { display: inline; }
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 0.78rem;
+}
+
+.saved-runs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.saved-runs li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.report-doc { display: grid; gap: 10px; margin-top: 12px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.report-doc h4 { margin: 10px 0 0; font-size: 1rem; }
+.report-doc__org { font-size: 0.85rem; color: var(--muted); }
+.report-doc__title { font-size: 1.35rem; }
+.report-doc .draft h5 { margin: 12px 0 4px; font-size: 0.95rem; }
+.report-doc .draft h5:first-child { margin-top: 0; }
+.table th.num { text-align: right; }
+.table tbody th[scope="row"] { text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: inherit; font-weight: 500; white-space: normal; }
+
+/* "Print / save as PDF": only the report is printed, on white. */
+@media print {
+  body * { visibility: hidden; }
+  .report-doc, .report-doc * { visibility: visible; }
+  .report-doc { position: absolute; left: 0; top: 0; width: 100%; border: 0; box-sizing: border-box; background: #fff; color: #000; }
+  .report-doc .table-wrap { overflow: visible; border-color: #999; }
+  .report-doc table, .report-doc .draft { break-inside: avoid; }
+  .report-doc h4 { break-after: avoid; }
+  .no-print { display: none; }
 }
 
 /* ---- Accessibility ---- */

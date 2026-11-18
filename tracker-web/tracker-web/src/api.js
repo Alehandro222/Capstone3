@@ -88,9 +88,12 @@ export const api = {
   // Downloads an export (xlsx or csv) and hands it to the browser as a file.
   downloadReport: (params) => download(`/api/reports/export${query(params)}`),
 
-  // Monthly report draft by Gemini (admin). Only the period's counts are sent to Google.
+  // Day / week / month reports made in the background (admin). Only the period's counts go to Google.
   getAssistantStatus: () => request('/api/reports/assistant'),
-  draftReport: (from, to) => send('POST', '/api/reports/assistant', { from, to }),
+  startReportRun: (kind, date) => send('POST', '/api/reports/runs', { kind, date }),
+  getReportRuns: () => request('/api/reports/runs'),
+  getReportRun: (id) => request(`/api/reports/runs/${id}`),
+  deleteReportRun: (id) => send('DELETE', `/api/reports/runs/${id}`),
 
   // ---- Admin only ----
   getStaff: () => request('/api/staff'),

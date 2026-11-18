@@ -1,0 +1,113 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+using TrackerApi.Models;
+
+namespace TrackerApi.Services;
+
+// The parts of a generated report that must be exactly right, as plain functions of the data:
+// which days a day / week / month covers, the comparison with the previous period, the text
+// written without Gemini, and the check that a draft uses no number that is not in the data.
+public static class ReportMath
+{
+    // The whole period (Manila calendar days) that contains `anchor`.
+    // A week runs Monday to Sunday (a Philippine office week).
+    public static (DateOnly From, DateOnly To) Of(ReportKind kind, DateOnly anchor)
+    {
+        switch (kind)
+        {
+            case ReportKind.Day:
+                return (anchor, anchor);
+            case ReportKind.Week:
+                var monday = anchor.AddDays(-(((int)anchor.DayOfWeek + 6) % 7));
+                return (monday, monday.AddDays(6));
+            default:
+                var first = new DateOnly(anchor.Year, anchor.Month, 1);
+                return (first, first.AddMonths(1).AddDays(-1));
+        }
+    }
+
+    // The period to compare with: the whole one before, or cut to the same number of days when this one
+    // is not over yet (so "Nov 1-10" is compared with "Oct 1-10", not with all of October).
+    public static (DateOnly From, DateOnly To) Previous(ReportKind kind, DateOnly from, DateOnly to)
+    {
+        var whole = Of(kind, from);
+        var (prevFrom, prevEnd) = Of(kind, whole.From.AddDays(-1));
+        if (to >= whole.To) return (prevFrom, prevEnd); // this one is complete: compare with the whole previous period
+        var prevTo = prevFrom.AddDays(to.DayNumber - from.DayNumber);
+        return (prevFrom, prevTo < prevEnd ? prevTo : prevEnd);
+    }
+
+    // ---- Comparison ------------------------------------------------------------
+
+    public static List<ComparisonRowDto> Compare(ReportDto now, ReportDto before)
+    {
+        static ComparisonRowDto Row(string measure, double a, double b) => new(
+            measure, a, b, Math.Round(a - b, 1), b == 0 ? null : Math.Round((a - b) * 100 / b, 1));
+        return new List<ComparisonRowDto>
+        {
+            Row("Visits", now.Visits, before.Visits),
+            Row("Visitors who used a PC", now.VisitsWithComputer, before.VisitsWithComputer),
+            Row("PC sessions", now.Sessions, before.Sessions),
+            Row("PC hours", now.SessionHours, before.SessionHours),
+            Row("Average session (minutes)", now.AverageSessionMinutes, before.AverageSessionMinutes),
+            Row("Waitlist: joined", now.Waitlist.Joined, before.Waitlist.Joined),
+        };
+    }
+
+    // Each answer as a share of all visits, one decimal. (Sectors and services can add up to
+    // more than 100%: a visitor can tick several.)
+    public static Dictionary<string, double> Percents(IEnumerable<CountDto> counts, int visits, Func<string, string> label) =>
+        visits == 0
+            ? new()
+            : counts.ToDictionary(c => label(c.Key), c => Math.Round(c.Count * 100.0 / visits, 1));
+
+    public static (DateOnly Day, int Visits)? BusiestDay(ReportDto r)
+    {
+        var best = r.ByDay.OrderByDescending(d => d.Visits).ThenBy(d => d.Day).FirstOrDefault();
+        return best is null || best.Visits == 0 ? null : (best.Day, best.Visits);
+    }
+
+    public static (string Hour, int Visits)? BusiestHour(ReportDto r)
+    {
+        var best = r.VisitsByHour.OrderByDescending(h => h.Count).ThenBy(h => int.Parse(h.Key, CultureInfo.InvariantCulture)).FirstOrDefault();
+        return best is null || best.Count == 0 ? null : ($"{int.Parse(best.Key, CultureInfo.InvariantCulture):00}:00", best.Count);
+    }
+
+    // ---- Text written by code (daily reports, and the fallback when Gemini is not used) ------
+
+    public static string PlainNarrative(ReportDto r, IReadOnlyList<ComparisonRowDto>? comparison)
+    {
+        var period = r.From == r.To ? FormattableString.Invariant($"{r.From:MMMM d, yyyy}") : FormattableString.Invariant($"{r.From:MMMM d, yyyy} to {r.To:MMMM d, yyyy}");
+        var lines = new List<string> { "## Summary" };
+        lines.Add(r.Visits == 0
+            ? FormattableString.Invariant($"- No visits were logged for {period}.")
+            : FormattableString.Invariant($"- {r.Visits} visits were logged for {period}; {r.VisitsWithComputer} of the visitors used a computer, in {r.Sessions} sessions totalling {r.SessionHours} hours."));
+        if (BusiestHour(r) is { } hour) lines.Add(FormattableString.Invariant($"- The busiest hour was {hour.Hour}, with {hour.Visits} visits."));
+        if (r.Waitlist.Joined > 0)
+            lines.Add(FormattableString.Invariant($"- {r.Waitlist.Joined} people joined the waitlist; {r.Waitlist.GotAComputer} got a computer."));
+        if (comparison?.FirstOrDefault(c => c.Measure == "Visits") is { } v)
+            lines.Add(FormattableString.Invariant($"- Visits were {v.Now} compared with {v.Before} in the previous period."));
+        return string.Join("\n", lines);
+    }
+
+    // ---- Number check ------------------------------------------------------------
+
+    private static readonly Regex Number = new(@"\d+(?:,\d{3})*(?:\.\d+)?", RegexOptions.Compiled);
+    private static readonly Regex ListMarker = new(@"^\s*\d+[.)]\s", RegexOptions.Multiline | RegexOptions.Compiled);
+
+    private static IEnumerable<string> Numbers(string text) =>
+        Number.Matches(text).Select(m =>
+            decimal.Parse(m.Value.Replace(",", ""), CultureInfo.InvariantCulture).ToString("0.############", CultureInfo.InvariantCulture));
+
+    // The numbers in `draft` that do not appear anywhere in `facts` (the exact text sent to
+    // Gemini). Empty = every figure in the draft came from the data. Numbers must be written
+    // as digits, exactly as given; "12.5" matches 12.5 but "13" does not. A minus sign is
+    // ignored (a drop of 5 is written "down by 5").
+    public static List<string> UnknownNumbers(string draft, string facts)
+    {
+        var allowed = Numbers(facts).ToHashSet();
+        return Numbers(ListMarker.Replace(draft, ""))
+            .Where(n => !allowed.Contains(n)).Distinct()
+            .OrderBy(n => decimal.Parse(n, CultureInfo.InvariantCulture)).ToList();
+    }
+}

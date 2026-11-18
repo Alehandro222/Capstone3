@@ -30,6 +30,7 @@ public class TrackerDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
+    public DbSet<ReportRun> ReportRuns => Set<ReportRun>();
 
     // The keys that protect staff sign-in cookies. Only used when hosted (PostgreSQL, see
     // Program.cs): a cloud container forgets its files on every restart, which would sign
@@ -156,6 +157,11 @@ public class TrackerDbContext : DbContext, IDataProtectionKeyContext
         modelBuilder.Entity<AuditEntry>().Property(a => a.TargetId).HasMaxLength(50);
         modelBuilder.Entity<AuditEntry>().Property(a => a.Details).HasMaxLength(1000);
         modelBuilder.Entity<AuditEntry>().Property(a => a.IpAddress).HasMaxLength(45);
+
+        modelBuilder.Entity<ReportRun>().HasIndex(r => r.CreatedAt);
+        modelBuilder.Entity<ReportRun>().Property(r => r.Step).HasMaxLength(100);
+        modelBuilder.Entity<ReportRun>().Property(r => r.Note).HasMaxLength(1000);
+        modelBuilder.Entity<ReportRun>().Property(r => r.Model).HasMaxLength(50);
 
         // ---- Sample data so the API returns something on first run --------------
 

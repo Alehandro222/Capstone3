@@ -105,14 +105,14 @@ A kiosk can only see and act on its own PC.
 | PCs | `POST /api/computers`, `PUT /api/computers/{id}`, `DELETE /api/computers/{id}`, `POST /api/computers/{id}/pairing-code`, `POST /api/computers/{id}/unpair` |
 | Audit log | `GET /api/audit` |
 | Staff accounts | `GET /api/staff`, `POST /api/staff`, `PUT /api/staff/{id}`, `POST /api/staff/{id}/password`, `POST /api/staff/{id}/unlock` |
-| Gemini report assistant | `GET /api/reports/assistant`, `POST /api/reports/assistant` (20 s timeout when hosted) |
+| Gemini report assistant | `GET /api/reports/assistant`, `POST/GET /api/reports/runs` (background job: counts → Gemini draft → number check → saved report) |
 
 Swagger is enabled in development only.
 
 ## Data (14 tables)
 
 `Computers`, `Peripherals`, `Sessions`, `AssistTickets`, `Visits`, `VisitSectors`,
-`VisitServices`, `Passes`, `ProblemReports`, `WaitlistEntries`, `Staff`, `AuditLog`,
+`VisitServices`, `Passes`, `ProblemReports`, `WaitlistEntries`, `Staff`, `AuditLog`, `ReportRuns`,
 `DataProtectionKeys` (staff sign-in keys, so a restart doesn't sign staff out), and
 `__EFMigrationsHistory`. Visit records are deleted after 1 year (`KeepVisitsDays`).
 Two migration sets exist: `Migrations/` (SQLite) and `Migrations/Postgres/`.

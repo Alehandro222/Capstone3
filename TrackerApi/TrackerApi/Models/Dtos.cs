@@ -202,10 +202,30 @@ public record ReportDto(
 
 // ---- Report assistant (Gemini) ----
 
-public record AssistantRequest(DateOnly? From, DateOnly? To);
+// A report run is started with a kind and any day inside the period (default: today).
+public record ReportRunRequest(ReportKind Kind, DateOnly? Date);
 
-// SentToGemini: exactly the counts that were sent (shown to staff next to the draft).
-public record AssistantDraftDto(DateOnly From, DateOnly To, string Model, string Draft, string SentToGemini);
+// One row of the "compared with the previous period" table. Computed by code, never by Gemini.
+// ChangePercent is null when the previous period had 0.
+public record ComparisonRowDto(string Measure, double Now, double Before, double Change, double? ChangePercent);
+
+// The finished report. Every number in it comes from the data; Narrative is Gemini's (or the
+// code's) text, and was checked against the numbers (NarrativeChecked) before it was kept.
+public record ReportDocumentDto(
+    ReportKind Kind,
+    bool Partial,
+    ReportDto Current,
+    ReportDto? Previous,
+    List<ComparisonRowDto> Comparison,
+    string Narrative,
+    bool NarrativeChecked);
+
+public record ReportRunListItemDto(int Id, ReportKind Kind, DateOnly From, DateOnly To, RunStatus Status,
+    string? Note, DateTime CreatedAt, DateTime? FinishedAt);
+
+// SentToGemini: exactly the counts that were sent (shown to staff next to the report).
+public record ReportRunDto(int Id, ReportKind Kind, DateOnly From, DateOnly To, RunStatus Status, string Step,
+    string? Note, string? Model, string? SentToGemini, ReportDocumentDto? Document, DateTime CreatedAt, DateTime? FinishedAt);
 
 public record AssistantStatusDto(bool Configured, string Model);
 

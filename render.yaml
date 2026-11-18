@@ -31,4 +31,4 @@ services:
       - key: Gemini__ApiKey
         sync: false              # optional: the report assistant
       - key: Gemini__TimeoutSeconds
-        value: "20"              # Netlify gives up on /api/* after 26 s; fail with a clear message first
+        value: "60"              # report runs are background jobs, so Netlify's 26 s limit does not apply
