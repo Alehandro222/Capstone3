@@ -122,7 +122,8 @@ src/
     StaffAccounts.jsx        admin: staff accounts
     AuditLog.jsx             admin: audit log with filters
     Reports.jsx              reports for a period: tiles, charts, downloads
-    ReportAssistant.jsx      admin: report draft by Gemini (counts only), copy / download
+    ReportRuns.jsx           admin: day / week / month report (background job, polled), saved reports, print / PDF
+    reportLabels.js          answer labels and number format shared by the report screens
     format.js, ui.jsx        labels, time formatting, dialogs
     dashboard.css
   components/

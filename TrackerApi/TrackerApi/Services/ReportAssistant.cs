@@ -62,7 +62,8 @@ public class ReportAssistant
             "- Leave out any fact you cannot state with the given numbers. Do not use number words (write 3, not three) and do not number your list items.\n" +
             "- Do not guess causes. You may add a short 'Suggestions' section; label everything there as a suggestion.\n" +
             "- A visitor can tick several sectors and services, so those totals can exceed the number of visits; say so if you compare them.\n" +
-            "- Times are Philippine time. Write hours as given, e.g. 13:00. Do not convert them.\n" +
+            "- Times are Philippine time. Write hours as given, e.g. 13:00, and only hours that are listed. Write dates as given (2026-11-01), never as 'November 1'; a month and year such as 'November 2026' is fine. " +
+            "Write age groups, sectors and computer names exactly as labelled in the counts.\n" +
             "- Formal, clear English for a government report. About 250 to 450 words.\n" +
             "- Format: Markdown with '## ' headings and '- ' bullet points only. No tables, no other formatting.\n" +
             "- Sections, in this order: Summary; Visitors; Services availed; Computer use; Waitlist; Compared with the previous period; Suggestions.";

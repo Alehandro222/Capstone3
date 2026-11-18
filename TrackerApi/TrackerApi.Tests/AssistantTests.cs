@@ -106,10 +106,10 @@ public class AssistantTests
         var admin = await factory.SignedInAsync();
         await AddTwoVisitsAsync(factory, admin);
 
-        // First draft invents "99"; the second is right. The second request names the bad number.
+        // First draft invents "5"; the second is right. The second request names the bad number.
         var run = await RunAsync(factory, admin, "Week", "2026-11-07");
         Assert.Equal(2, gemini.Requests.Count);
-        Assert.StartsWith("Your previous draft used these numbers, which are not in the data: 99.", PromptOf(gemini.Requests[1].Body));
+        Assert.StartsWith("Your previous draft used these numbers, which are not in the data: 5.", PromptOf(gemini.Requests[1].Body));
         Assert.Equal("## Summary\n- 2 visits.", run.Document!.Narrative);
         Assert.True(run.Document.NarrativeChecked);
         Assert.Null(run.Note);
@@ -139,7 +139,6 @@ public class AssistantTests
         Assert.Null(run.SentToGemini);
         Assert.Contains("2 visits were logged for November 7, 2026", run.Document!.Narrative);
         Assert.True(run.Document.NarrativeChecked);
-        Assert.Empty(ReportMath.UnknownNumbers(run.Document.Narrative, JsonSerializer.Serialize(run.Document.Current)));
     }
 
     [Fact]

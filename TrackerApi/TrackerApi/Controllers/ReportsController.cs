@@ -52,11 +52,11 @@ public class ReportsController : ControllerBase
         return ReportRunner.ToDto(run);
     }
 
-    // GET api/reports/runs -> the saved reports, newest first (admin)
+    // GET api/reports/runs -> the saved reports, newest first, up to 200 (admin)
     [HttpGet("runs")]
     [Authorize(Policy = Policies.Admin)]
     public async Task<List<ReportRunListItemDto>> Runs() =>
-        await _db.ReportRuns.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(50)
+        await _db.ReportRuns.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(200)
             .Select(r => new ReportRunListItemDto(r.Id, r.Kind, r.From, r.To, r.Status, r.Note, r.CreatedAt, r.FinishedAt))
             .ToListAsync();
 

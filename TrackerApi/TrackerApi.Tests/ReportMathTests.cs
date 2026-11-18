@@ -64,6 +64,16 @@ public class ReportMathTests
     [InlineData("1. First point\n2. Second point\n- 3 visits", "{ \"v\": 3 }", "")] // list numbering is not a figure
     [InlineData("- Down by 5.", "{ \"change\": -5 }", "")]                       // the sign is ignored
     [InlineData("- 17 and 5", "{ \"a\": 5 }", "17")]
+    // Small invented numbers must not hide in the digits of dates, hours, labels or PC names.
+    [InlineData("- 5 visits on 2026-11-01.", "{ \"d\": { \"2026-11-01\": 0 }, \"visits\": 2 }", "5")]
+    [InlineData("- 2 visits on 2026-11-01.", "{ \"d\": { \"2026-11-01\": 0 }, \"visits\": 2 }", "")]
+    [InlineData("- 11 visits.", "{ \"d\": { \"2026-11-01\": 0 }, \"visits\": 2 }", "11")]
+    [InlineData("- 1 visit on 2026-11-01.", "{ \"d\": { \"2026-11-01\": 0 }, \"visits\": 2 }", "1")]
+    [InlineData("- In November 2026 there were 2 visits.", "{ \"d\": { \"2026-11-01\": 0 }, \"visits\": 2 }", "")]
+    [InlineData("- 18-30 years old: 2.", "{ \"ageGroup\": { \"18-30 years old\": 2 } }", "")]
+    [InlineData("- 30 years old: 2.", "{ \"ageGroup\": { \"18-30 years old\": 2 } }", "30")]
+    [InlineData("- PC-01 had 2 hours.", "{ \"computers\": [ { \"computer\": \"PC-01\", \"hours\": 2 } ] }", "")]
+    [InlineData("- PC-07 had 2 hours.", "{ \"computers\": [ { \"computer\": \"PC-01\", \"hours\": 2 } ] }", "7")]
     public void A_draft_may_only_use_numbers_that_are_in_the_data(string draft, string facts, string unknown)
     {
         Assert.Equal(unknown, string.Join(",", ReportMath.UnknownNumbers(draft, facts)));

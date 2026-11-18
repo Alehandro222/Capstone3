@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../api'
 import { startPolling } from '../polling.js'
 import { todayInManila } from '../time.js'
@@ -104,8 +105,9 @@ export default function ReportRuns() {
       </div>
       <p className="muted small m0">
         Makes a finished daily, weekly or monthly report: the figures and tables come straight from the data, and
-        Google Gemini writes the text from the counts only (no names, no individual visits). Every number in the text is
-        checked against the data first. Google may use what its free tier receives. Reports are kept, counts only.
+        Google Gemini writes the text from the counts only (no names, no individual visits). Before the text is kept, the
+        system checks that each figure in it is one of the data's numbers; still read it before you send it on. Google
+        may use what its free tier receives. Reports are kept, counts only.
       </p>
 
       {status && !status.configured && (
@@ -187,16 +189,34 @@ export default function ReportRuns() {
 
 // The finished report: the same on screen and on paper ("Print" → save as PDF).
 function ReportDocument({ run }) {
+  // Two copies: one in the page, and one straight under <body> that only shows on paper (the rest
+  // of the page is hidden when printing), so the printout has no blank pages or leftover layout.
+  return (
+    <>
+      <div className="actions no-print">
+        <button className="btn" onClick={() => window.print()}>Print / save as PDF</button>
+      </div>
+      <div className="screen-only">
+        <ReportBody run={run} />
+      </div>
+      {createPortal(<div className="print-only"><ReportBody run={run} /></div>, document.body)}
+      {run.sentToGemini && (
+        <details className="sent no-print">
+          <summary>What was sent to Google</summary>
+          <pre>{run.sentToGemini}</pre>
+        </details>
+      )}
+    </>
+  )
+}
+
+function ReportBody({ run }) {
   const doc = run.document
   const r = doc.current
   const title = `${KINDS.find((k) => k.value === doc.kind).label} report: ${periodTitle(doc.kind, run.from, run.to)}`
   const days = r.byDay.length
 
   return (
-    <>
-      <div className="actions no-print">
-        <button className="btn" onClick={() => window.print()}>Print / save as PDF</button>
-      </div>
       <article className="report-doc" aria-label={title}>
         <header>
           <p className="report-doc__org m0">DICT Digital Transformation Center, Baguio City</p>
@@ -215,7 +235,7 @@ function ReportDocument({ run }) {
             <p className="muted small m0">
               {doc.kind === 'Day'
                 ? 'Written by the system from the counts.'
-                : 'Written by Gemini; every number in the text was checked against the data.'}
+                : 'Written by Gemini; each figure in the text was matched to the counts.'}
             </p>
           </div>
         )}
@@ -293,14 +313,6 @@ function ReportDocument({ run }) {
           ]}
         />
       </article>
-
-      {run.sentToGemini && (
-        <details className="sent no-print">
-          <summary>What was sent to Google</summary>
-          <pre>{run.sentToGemini}</pre>
-        </details>
-      )}
-    </>
   )
 }
 

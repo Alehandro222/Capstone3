@@ -308,15 +308,18 @@ a.link-button { display: inline; }
 .table th.num { text-align: right; }
 .table tbody th[scope="row"] { text-transform: none; letter-spacing: 0; font-size: 0.9rem; color: inherit; font-weight: 500; white-space: normal; }
 
-/* "Print / save as PDF": only the report is printed, on white. */
+/* "Print / save as PDF": the page is hidden and only the copy under <body> is printed, on white. */
+.print-only { display: none; }
 @media print {
-  body * { visibility: hidden; }
-  .report-doc, .report-doc * { visibility: visible; }
-  .report-doc { position: absolute; left: 0; top: 0; width: 100%; border: 0; box-sizing: border-box; background: #fff; color: #000; }
-  .report-doc .table-wrap { overflow: visible; border-color: #999; }
-  .report-doc table, .report-doc .draft { break-inside: avoid; }
-  .report-doc h4 { break-after: avoid; }
-  .no-print { display: none; }
+  #root, .screen-only, .no-print { display: none !important; }
+  .print-only { display: block; }
+  html, body { background: #fff !important; color: #000 !important; }
+  .print-only .report-doc { border: 0; padding: 0; background: #fff; color: #000; }
+  .print-only .report-doc .muted, .print-only .report-doc__org { color: #333; }
+  .print-only .table-wrap { overflow: visible; border-color: #999; background: #fff; }
+  .print-only .table th, .print-only .table td { color: #000; border-color: #bbb; }
+  .print-only table, .print-only .draft { break-inside: avoid; }
+  .print-only h4 { break-after: avoid; }
 }
 
 /* ---- Accessibility ---- */

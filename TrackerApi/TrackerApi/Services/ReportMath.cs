@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using TrackerApi.Models;
 
@@ -93,21 +94,58 @@ public static class ReportMath
     // ---- Number check ------------------------------------------------------------
 
     private static readonly Regex Number = new(@"\d+(?:,\d{3})*(?:\.\d+)?", RegexOptions.Compiled);
-    private static readonly Regex ListMarker = new(@"^\s*\d+[.)]\s", RegexOptions.Multiline | RegexOptions.Compiled);
+    private static readonly Regex ListMarker = new(@"^\s*\d+[.)]\s",RegexOptions.Multiline | RegexOptions.Compiled);
+
+    private static string Canonical(decimal d) => Math.Abs(d).ToString("0.############", CultureInfo.InvariantCulture);
 
     private static IEnumerable<string> Numbers(string text) =>
-        Number.Matches(text).Select(m =>
-            decimal.Parse(m.Value.Replace(",", ""), CultureInfo.InvariantCulture).ToString("0.############", CultureInfo.InvariantCulture));
+        Number.Matches(text).Select(m => Canonical(decimal.Parse(m.Value.Replace(",", ""), CultureInfo.InvariantCulture)));
 
-    // The numbers in `draft` that do not appear anywhere in `facts` (the exact text sent to
-    // Gemini). Empty = every figure in the draft came from the data. Numbers must be written
-    // as digits, exactly as given; "12.5" matches 12.5 but "13" does not. A minus sign is
-    // ignored (a drop of 5 is written "down by 5").
+    // The numbers in `draft` that are not figures in `facts` (the exact JSON sent to Gemini).
+    // Empty = every figure in the draft is one of the data's numbers.
+    //  - A figure must be a number value in the facts (a count, hours, a percentage ...), written
+    //    as digits exactly as given: 12.5 matches 12.5, 13 does not. A minus sign is ignored.
+    //  - Dates, hours of the day, answer labels and PC names that contain digits ("2026-11-01",
+    //    "09:00", "18-30 years old", "PC-01") are checked as whole strings that appear in the facts,
+    //    so the "11" of a date can't pass as 11 visits. The year of a date is allowed.
+    // This proves a figure exists in the data; it cannot tell whether it is used for the right
+    // thing (visits swapped with sessions): staff still read the report.
     public static List<string> UnknownNumbers(string draft, string facts)
     {
-        var allowed = Numbers(facts).ToHashSet();
-        return Numbers(ListMarker.Replace(draft, ""))
-            .Where(n => !allowed.Contains(n)).Distinct()
+        var figures = new HashSet<string>();
+        var literals = new HashSet<string>(StringComparer.Ordinal);
+        using (var doc = JsonDocument.Parse(facts))
+            Collect(doc.RootElement, figures, literals);
+        foreach (var l in literals.ToList())
+            foreach (Match year in Regex.Matches(l, @"(?<!\d)\d{4}(?!\d)")) figures.Add(year.Value);
+
+        // Take the quoted literals out of the draft (longest first), then check what is left.
+        var rest = ListMarker.Replace(draft, "");
+        foreach (var l in literals.OrderByDescending(l => l.Length)) rest = rest.Replace(l, " ");
+        return Numbers(rest).Where(n => !figures.Contains(n)).Distinct()
             .OrderBy(n => decimal.Parse(n, CultureInfo.InvariantCulture)).ToList();
+    }
+
+    private static void Collect(JsonElement e, HashSet<string> figures, HashSet<string> literals)
+    {
+        switch (e.ValueKind)
+        {
+            case JsonValueKind.Number:
+                figures.Add(Canonical(e.GetDecimal()));
+                break;
+            case JsonValueKind.String:
+                if (e.GetString() is { } s && s.Any(char.IsDigit)) literals.Add(s);
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in e.EnumerateArray()) Collect(item, figures, literals);
+                break;
+            case JsonValueKind.Object:
+                foreach (var p in e.EnumerateObject())
+                {
+                    if (p.Name.Any(char.IsDigit)) literals.Add(p.Name);
+                    Collect(p.Value, figures, literals);
+                }
+                break;
+        }
     }
 }
