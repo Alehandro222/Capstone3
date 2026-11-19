@@ -22,6 +22,8 @@ public static class Policies
     public const string Staff = "Staff";
     public const string Admin = "Admin";
     public const string Kiosk = "Kiosk";
+    public const string ReportAutomation = "ReportAutomation"; // an admin, or the automation token
+    public const string ReportReader = "ReportReader";         // staff, an admin, or the automation token
 }
 
 public static class Roles
@@ -29,6 +31,7 @@ public static class Roles
     public const string Staff = nameof(StaffRole.Staff);
     public const string Admin = nameof(StaffRole.Admin);
     public const string Kiosk = "Kiosk";
+    public const string Automation = "Automation";
 }
 
 public static class AuthSetup
@@ -59,7 +62,8 @@ public static class AuthSetup
                 // changed, is signed out straight away instead of when the cookie expires.
                 o.Events.OnValidatePrincipal = ValidateStaffAsync;
             })
-            .AddScheme<KioskAuthOptions, KioskAuthHandler>(KioskAuthHandler.SchemeName, _ => { });
+            .AddScheme<KioskAuthOptions, KioskAuthHandler>(KioskAuthHandler.SchemeName, _ => { })
+            .AddScheme<AutomationAuthOptions, AutomationAuthHandler>(AutomationAuthHandler.SchemeName, _ => { });
 
         services.AddAuthorization(o =>
         {
@@ -74,6 +78,14 @@ public static class AuthSetup
             o.AddPolicy(Policies.Kiosk, p => p
                 .AddAuthenticationSchemes(KioskAuthHandler.SchemeName)
                 .RequireRole(Roles.Kiosk));
+
+            // Report runs and the exports without names: also open to the automation token.
+            o.AddPolicy(Policies.ReportAutomation, p => p
+                .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, AutomationAuthHandler.SchemeName)
+                .RequireRole(Roles.Admin, Roles.Automation));
+            o.AddPolicy(Policies.ReportReader, p => p
+                .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, AutomationAuthHandler.SchemeName)
+                .RequireRole(Roles.Staff, Roles.Admin, Roles.Automation));
 
             // Secure by default: anything not marked otherwise needs a staff login.
             o.FallbackPolicy = o.GetPolicy(Policies.Staff);

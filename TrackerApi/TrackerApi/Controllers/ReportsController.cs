@@ -42,7 +42,7 @@ public class ReportsController : ControllerBase
     // on it with GET api/reports/runs/{id}. `date` is any day inside the period (default: today).
     // Only counts are ever sent to Gemini (ReportAssistant.Facts).
     [HttpPost("runs")]
-    [Authorize(Policy = Policies.Admin)]
+    [Authorize(Policy = Policies.ReportAutomation)]
     public async Task<ReportRunDto> StartRun(ReportRunRequest request)
     {
         var run = await _runner.CreateAsync(request.Kind, request.Date);
@@ -54,7 +54,7 @@ public class ReportsController : ControllerBase
 
     // GET api/reports/runs -> the saved reports, newest first, up to 200 (admin)
     [HttpGet("runs")]
-    [Authorize(Policy = Policies.Admin)]
+    [Authorize(Policy = Policies.ReportAutomation)]
     public async Task<List<ReportRunListItemDto>> Runs() =>
         await _db.ReportRuns.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(200)
             .Select(r => new ReportRunListItemDto(r.Id, r.Kind, r.From, r.To, r.Status, r.Note, r.CreatedAt, r.FinishedAt))
@@ -62,7 +62,7 @@ public class ReportsController : ControllerBase
 
     // GET api/reports/runs/{id} -> progress, and the finished report (admin)
     [HttpGet("runs/{id:int}")]
-    [Authorize(Policy = Policies.Admin)]
+    [Authorize(Policy = Policies.ReportAutomation)]
     public async Task<ReportRunDto> Run(int id) =>
         ReportRunner.ToDto(await _db.ReportRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id)
             ?? throw TrackerException.NotFound("There is no such report."));
@@ -91,6 +91,7 @@ public class ReportsController : ControllerBase
     // GET api/reports/export?from=&to=&format=xlsx&names=true -> also the visits and sessions lists (admin)
     // GET api/reports/export?from=&to=&format=csv&table=summary|days|visits|sessions (visits/sessions: admin)
     [HttpGet("export")]
+    [Authorize(Policy = Policies.ReportReader)]
     public async Task<IActionResult> Export([FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
         [FromQuery] string format = "xlsx", [FromQuery] string? table = null, [FromQuery] bool names = false)
     {

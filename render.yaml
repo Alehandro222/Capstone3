@@ -30,5 +30,7 @@ services:
         value: "75"              # the kiosk's 15 s heartbeat crosses three servers; 30 s flips PCs to Offline
       - key: Gemini__ApiKey
         sync: false              # optional: the report assistant
+      - key: Automation__Token
+        sync: false              # optional: lets an automation tool (n8n, Activepieces) make reports; see docs/AUTOMATION.md
       - key: Gemini__TimeoutSeconds
         value: "60"              # report runs are background jobs, so Netlify's 26 s limit does not apply

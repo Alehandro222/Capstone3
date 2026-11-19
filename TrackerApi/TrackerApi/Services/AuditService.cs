@@ -26,6 +26,7 @@ public class AuditService
         var user = _http.HttpContext?.User;
         var (type, staffId, name) = user switch
         {
+            not null when user.IsInRole(Roles.Automation) => (ActorType.System, (int?)null, "Automation (API token)"),
             not null when user.IsInRole(Roles.Kiosk) => (ActorType.Kiosk, (int?)null, user.Identity!.Name ?? "Kiosk app"),
             not null when user.StaffId() is int id => (ActorType.Staff, id, user.Identity?.Name ?? $"Staff #{id}"),
             _ => (ActorType.Visitor, null, "Visitor")
