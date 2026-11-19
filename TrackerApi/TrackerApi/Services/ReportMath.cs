@@ -40,18 +40,24 @@ public static class ReportMath
 
     // ---- Comparison ------------------------------------------------------------
 
+    // The names of the comparison rows (the checker lets exactly these through as "measure").
+    public static readonly string[] Measures =
+    {
+        "Visits", "Visitors who used a PC", "PC sessions", "PC hours", "Average session (minutes)", "Waitlist: joined"
+    };
+
     public static List<ComparisonRowDto> Compare(ReportDto now, ReportDto before)
     {
         static ComparisonRowDto Row(string measure, double a, double b) => new(
             measure, a, b, Math.Round(a - b, 1), b == 0 ? null : Math.Round((a - b) * 100 / b, 1));
         return new List<ComparisonRowDto>
         {
-            Row("Visits", now.Visits, before.Visits),
-            Row("Visitors who used a PC", now.VisitsWithComputer, before.VisitsWithComputer),
-            Row("PC sessions", now.Sessions, before.Sessions),
-            Row("PC hours", now.SessionHours, before.SessionHours),
-            Row("Average session (minutes)", now.AverageSessionMinutes, before.AverageSessionMinutes),
-            Row("Waitlist: joined", now.Waitlist.Joined, before.Waitlist.Joined),
+            Row(Measures[0], now.Visits, before.Visits),
+            Row(Measures[1], now.VisitsWithComputer, before.VisitsWithComputer),
+            Row(Measures[2], now.Sessions, before.Sessions),
+            Row(Measures[3], now.SessionHours, before.SessionHours),
+            Row(Measures[4], now.AverageSessionMinutes, before.AverageSessionMinutes),
+            Row(Measures[5], now.Waitlist.Joined, before.Waitlist.Joined),
         };
     }
 

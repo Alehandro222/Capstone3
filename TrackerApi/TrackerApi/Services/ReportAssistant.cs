@@ -80,7 +80,7 @@ public class ReportAssistant
 
         var facts = new
         {
-            center = "DICT Digital Transformation Center, Baguio City",
+            center = FactsGuard.Center,
             period = new { from = r.From.ToString("yyyy-MM-dd"), to = r.To.ToString("yyyy-MM-dd"), days = r.ByDay.Count, timeZone = r.TimeZone },
             totals = new
             {
@@ -111,7 +111,7 @@ public class ReportAssistant
                 sector = ReportMath.Percents(r.BySector, r.Visits, k => Labels.Of(Enum.Parse<Sector>(k))),
                 service = ReportMath.Percents(r.ByService, r.Visits, k => Labels.Of(Enum.Parse<ServiceAvailed>(k)))
             },
-            computers = r.ByComputer.Select(c => new { computer = c.Name, sessions = c.Sessions, hours = c.Hours }),
+            computers = r.ByComputer.Select(c => new { computer = FactsGuard.NameFor(c.ComputerId, c.Name), sessions = c.Sessions, hours = c.Hours }),
             waitlist = new
             {
                 joined = r.Waitlist.Joined,

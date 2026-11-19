@@ -201,6 +201,17 @@ public class ReportRunner
             else
             {
                 var facts = ReportAssistant.Facts(current, before, comparison);
+
+                // The checker runs first: nothing reaches Gemini unless every piece of text in the
+                // facts is one of the fixed labels, dates, hours or a short computer name.
+                await StepAsync(run, RunStatus.Running, "Checking the data before it goes to Gemini", ct);
+                if (FactsGuard.Check(facts) is { } blocked)
+                {
+                    _log.LogWarning("Report run {Id}: facts refused before Gemini ({Why}).", run.Id, blocked);
+                    run.Note = "The written summary was not made: the checker refused the data before it went to Gemini (" + blocked + ").";
+                    goto Finish;
+                }
+
                 run.Facts = facts;
                 run.Model = _assistant.Model;
                 try
@@ -208,7 +219,12 @@ public class ReportRunner
                     await StepAsync(run, RunStatus.Running, "Asking Gemini for a draft", ct);
                     var draft = await _assistant.DraftAsync(run.Kind, facts, null, ct);
 
-                    await StepAsync(run, RunStatus.Running, "Checking the numbers", ct);
+                    await StepAsync(run, RunStatus.Running, "Checking the draft", ct);
+                    if (FactsGuard.UnsafeDraft(draft) is { } unsafeWhy)
+                    {
+                        run.Note = "The written summary was left out: " + unsafeWhy + ".";
+                        goto Finish;
+                    }
                     var unknown = ReportMath.UnknownNumbers(draft, facts);
                     if (unknown.Count > 0)
                     {
@@ -235,6 +251,7 @@ public class ReportRunner
                 }
             }
 
+        Finish:
             var partial = run.To < ReportMath.Of(run.Kind, run.From).To;
             run.Document = JsonSerializer.Serialize(
                 new ReportDocumentDto(run.Kind, partial, current, before, comparison, narrative, checkedOk), DocumentJson);
