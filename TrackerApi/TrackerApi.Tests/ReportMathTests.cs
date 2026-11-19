@@ -28,6 +28,20 @@ public class ReportMathTests
     }
 
     [Fact]
+    public void Previous_means_the_last_day_of_the_period_before()
+    {
+        // The flow runs on the 1st and asks for "last month": the day before the 1st is in last month.
+        Assert.Equal(D(2026, 10, 31), ReportMath.DayBefore(ReportKind.Month, D(2026, 11, 1)));
+        Assert.Equal(D(2026, 10, 31), ReportMath.DayBefore(ReportKind.Month, D(2026, 11, 19)));
+        Assert.Equal(D(2026, 2, 28), ReportMath.DayBefore(ReportKind.Month, D(2026, 3, 9)));
+        Assert.Equal(D(2025, 12, 31), ReportMath.DayBefore(ReportKind.Month, D(2026, 1, 15)));
+        Assert.Equal(D(2026, 11, 8), ReportMath.DayBefore(ReportKind.Week, D(2026, 11, 12))); // the Sunday before
+        Assert.Equal(D(2026, 11, 6), ReportMath.DayBefore(ReportKind.Day, D(2026, 11, 7)));
+        // ... and that day belongs to the whole of last month:
+        Assert.Equal((D(2026, 10, 1), D(2026, 10, 31)), ReportMath.Of(ReportKind.Month, ReportMath.DayBefore(ReportKind.Month, D(2026, 11, 1))));
+    }
+
+    [Fact]
     public void The_previous_period_has_the_same_length_when_this_one_is_not_over()
     {
         // A whole month against the whole month before.

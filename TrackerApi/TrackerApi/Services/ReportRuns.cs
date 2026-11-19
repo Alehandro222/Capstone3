@@ -121,10 +121,10 @@ public class ReportRunner
 
     // ---- Starting a run (called by the controller) ----------------------------------------
 
-    public async Task<ReportRun> CreateAsync(ReportKind kind, DateOnly? date)
+    public async Task<ReportRun> CreateAsync(ReportKind kind, DateOnly? date, bool previous = false)
     {
         var today = _reports.Today;
-        var whole = ReportMath.Of(kind, date ?? today);
+        var whole = ReportMath.Of(kind, previous ? ReportMath.DayBefore(kind, date ?? today) : date ?? today);
         if (whole.From > today)
             throw TrackerException.BadRequest("That period has not started yet.");
         if (whole.From < OldestCompleteDay)

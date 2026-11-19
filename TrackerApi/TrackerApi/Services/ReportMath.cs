@@ -27,6 +27,9 @@ public static class ReportMath
         }
     }
 
+    // The last day of the period before the one that contains `anchor` (last month, for a monthly report).
+    public static DateOnly DayBefore(ReportKind kind, DateOnly anchor) => Of(kind, anchor).From.AddDays(-1);
+
     // The period to compare with: the whole one before, or cut to the same number of days when this one
     // is not over yet (so "Nov 1-10" is compared with "Oct 1-10", not with all of October).
     public static (DateOnly From, DateOnly To) Previous(ReportKind kind, DateOnly from, DateOnly to)

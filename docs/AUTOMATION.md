@@ -24,7 +24,7 @@ through Netlify. Locally, use `http://localhost:5080/api/...` (from Docker: `htt
 
 | Step | Call |
 |---|---|
-| Start last month's report | `POST /api/reports/runs` with JSON `{ "kind": "Month", "date": "2026-10-15" }` (any day inside the month) → returns `id` |
+| Start last month's report | `POST /api/reports/runs` with JSON `{ "kind": "Month", "previous": true }` (`previous` = the period before the current one; or give `date` = any day inside the month you want) → returns `id` |
 | Wait | A 2-minute delay step (the job takes about a minute; fewer steps than a polling loop) |
 | Read it | `GET /api/reports/runs/{id}` → `status` is `Done` or `Failed`; `note` says why text is missing; `document.narrative` is the text; `document.narrativeChecked` is `true` when its numbers passed the check |
 | Excel | `GET /api/reports/export?from=2026-10-01&to=2026-10-31&format=xlsx` (no names) |
@@ -35,7 +35,7 @@ don't use Gemini.
 ## 3. Activepieces flow (about 5 steps a month)
 
 1. **Schedule:** the 1st of each month, 08:00, time zone Asia/Manila.
-2. **Code or HTTP:** work out a day inside last month (e.g. the 15th of last month) and `POST` the run.
+2. **HTTP:** `POST` the run with `previous: true` (no date maths in the flow).
 3. **Delay:** 2 minutes.
 4. **HTTP `GET`** the run. If `status` is not `Done`, email yourself an alert and stop.
 5. **Email** an **admin** (not the partners) with `document.narrative` in the body and the Excel attached

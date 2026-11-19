@@ -203,7 +203,8 @@ public record ReportDto(
 // ---- Report assistant (Gemini) ----
 
 // A report run is started with a kind and any day inside the period (default: today).
-public record ReportRunRequest(ReportKind Kind, DateOnly? Date);
+// Previous = true: the period BEFORE the one containing `date` (default today), e.g. last month.
+public record ReportRunRequest(ReportKind Kind, DateOnly? Date, bool Previous = false);
 
 // One row of the "compared with the previous period" table. Computed by code, never by Gemini.
 // ChangePercent is null when the previous period had 0.

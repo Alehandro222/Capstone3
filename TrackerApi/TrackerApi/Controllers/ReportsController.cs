@@ -45,7 +45,7 @@ public class ReportsController : ControllerBase
     [Authorize(Policy = Policies.ReportAutomation)]
     public async Task<ReportRunDto> StartRun(ReportRunRequest request)
     {
-        var run = await _runner.CreateAsync(request.Kind, request.Date);
+        var run = await _runner.CreateAsync(request.Kind, request.Date, request.Previous);
         await _audit.RecordAsync("report.assistant", "ReportRun", run.Id,
             $"{request.Kind} {run.From:yyyy-MM-dd} to {run.To:yyyy-MM-dd}, {(request.Kind == ReportKind.Day ? "no Gemini" : _assistant.Model + " (counts only)")}");
         _queue.Enqueue(run.Id);
