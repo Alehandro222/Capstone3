@@ -19,6 +19,7 @@ public class GeminiOptions
     public string Model { get; set; } = "gemini-2.5-flash";
     public string Endpoint { get; set; } = "https://generativelanguage.googleapis.com/v1beta/";
     public int TimeoutSeconds { get; set; } = 90;
+    public int RetryDelaySeconds { get; set; } = 4; // wait before a retry after a 500/503/504 (times the attempt)
 }
 
 // Drafts the monthly report with Google Gemini (DTC's partner asked for Gemini, free tier).
@@ -153,21 +154,36 @@ public class ReportAssistant
             generationConfig = new { temperature = 0.3 }
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"{_options.Endpoint.TrimEnd('/')}/models/{Uri.EscapeDataString(_options.Model)}:generateContent")
+        var payload = JsonSerializer.Serialize(body);
+        HttpRequestMessage NewRequest()
         {
-            Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("x-goog-api-key", _options.ApiKey); // a header, so the key never appears in logged URLs
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _http.SendAsync(request, ct);
+            var request = new HttpRequestMessage(HttpMethod.Post,
+                $"{_options.Endpoint.TrimEnd('/')}/models/{Uri.EscapeDataString(_options.Model)}:generateContent")
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Add("x-goog-api-key", _options.ApiKey); // a header, so the key never appears in logged URLs
+            return request;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+
+        // Google's free tier often answers 500/503/504 for a moment ("high demand"): try up to 3 times.
+        HttpResponseMessage response;
+        for (var attempt = 1; ; attempt++)
         {
-            throw new TrackerException(502, "Cannot reach Gemini. Check the server's internet connection and try again.");
+            try
+            {
+                using var request = NewRequest();
+                response = await _http.SendAsync(request, ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                throw new TrackerException(502, "Cannot reach Gemini. Check the server's internet connection and try again.");
+            }
+
+            var busy = response.StatusCode is HttpStatusCode.InternalServerError or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+            if (!busy || attempt == 3) break;
+            response.Dispose();
+            await Task.Delay(TimeSpan.FromSeconds(_options.RetryDelaySeconds * attempt), ct);
         }
 
         using (response)

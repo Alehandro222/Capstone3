@@ -21,10 +21,13 @@ public class AssistantTests
         public List<(HttpRequestMessage Request, string Body)> Requests { get; } = new();
         public Queue<string> Drafts { get; } = new();
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+        public int BusyFirst { get; set; } // answer 503 this many times before the real answer
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Requests.Add((request, await request.Content!.ReadAsStringAsync(ct)));
+            if (Requests.Count <= BusyFirst)
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
             var text = Drafts.Count > 0 ? Drafts.Dequeue() : "## Summary\n- 2 visits.";
             var body = Status == HttpStatusCode.OK
                 ? JsonSerializer.Serialize(new { candidates = new[] { new { content = new { parts = new[] { new { text } } } } } })
@@ -153,6 +156,25 @@ public class AssistantTests
         var run = await RunAsync(factory, admin, "Month", "2026-11-07");
         Assert.Equal("", run.Document!.Narrative);
         Assert.Contains("link, markup or code", run.Note);
+    }
+
+    [Fact]
+    public async Task A_busy_gemini_is_tried_again_but_not_forever()
+    {
+        var busyOnce = new FakeGemini { BusyFirst = 2 };
+        using var factory = new TrackerFactory(gemini: busyOnce, settings: new() { ["Gemini:RetryDelaySeconds"] = "0" });
+        var admin = await factory.SignedInAsync();
+        var run = await RunAsync(factory, admin, "Month", "2026-11-07");
+        Assert.Equal(3, busyOnce.Requests.Count); // two 503s, then the draft
+        Assert.True(run.Document!.NarrativeChecked);
+
+        var alwaysBusy = new FakeGemini { BusyFirst = 99 };
+        using var factory2 = new TrackerFactory(gemini: alwaysBusy, settings: new() { ["Gemini:RetryDelaySeconds"] = "0" });
+        var admin2 = await factory2.SignedInAsync();
+        var run2 = await RunAsync(factory2, admin2, "Month", "2026-11-07");
+        Assert.Equal(3, alwaysBusy.Requests.Count); // gives up after 3
+        Assert.Contains("503", run2.Note);
+        Assert.Equal("", run2.Document!.Narrative);
     }
 
     [Fact]

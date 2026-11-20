@@ -301,6 +301,7 @@ On a server, set the environment variable `Gemini__ApiKey` instead (on Render: *
 | `ApiKey` | The Google AI Studio key. Empty = the assistant is switched off and says how to set it up. | empty |
 | `Model` | Which Gemini model writes the draft. Free-tier models and their limits change; check AI Studio. | `gemini-2.5-flash` |
 | `TimeoutSeconds` | How long to wait for each Gemini call. Runs are in the background, so the website's 26 s limit does not apply (`60` in `render.yaml`); a report makes at most two calls | `90` |
+| `RetryDelaySeconds` | Google's free tier often answers 500/503/504 for a moment. Each Gemini call is tried up to 3 times, waiting this long (times the attempt number) between tries. 429 (limit reached) is not retried. | `4` |
 
 Free-tier limits are per Google project and change often (Google calls them "best effort"); a report needs one or two requests. Over the limit, the report is made without the written text and says "Gemini's free limit was reached".
 
