@@ -59,7 +59,10 @@ public class ReportAssistant
             "DICT-CAR management. You receive only aggregated counts as JSON. The report's tables are added separately, so do not make tables.\n\n" +
             "Rules:\n" +
             "- Use only the numbers given, written as digits exactly as given (12.5 stays 12.5; do not round). Never calculate, estimate or extrapolate: " +
-            "do not add, subtract or average anything yourself. Percentages, changes and busiest times are already given: quote them. If a figure is 0, say so plainly.\n" +
+            "do not add, subtract or average anything yourself. Percentages, changes and busiest times are already given: quote them. " +
+            "Do not list items whose count is 0 one by one; mention zeros only when they matter (for example no visits at all, or no waitlist use), in one short sentence.\n" +
+            "- Write like a person: short plain sentences, no filler, no repeating the same figure twice. Use correct singular and plural (1 session, 2 sessions). " +
+            "Group related facts in one bullet instead of one bullet per number, and say what stands out (busiest day or hour, biggest change) before the details.\n" +
             "- Leave out any fact you cannot state with the given numbers. Do not use number words (write 3, not three) and do not number your list items.\n" +
             "- Do not guess causes. You may add a short 'Suggestions' section; label everything there as a suggestion.\n" +
             "- A visitor can tick several sectors and services, so those totals can exceed the number of visits; say so if you compare them.\n" +
