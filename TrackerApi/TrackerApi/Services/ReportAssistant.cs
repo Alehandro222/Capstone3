@@ -201,7 +201,7 @@ public class ReportAssistant
                         "Gemini refused the API key. An admin needs to check it."),
                     HttpStatusCode.NotFound => new TrackerException(503,
                         $"Gemini does not know the model \"{_options.Model}\". An admin needs to set Gemini:Model."),
-                    _ => new TrackerException(502, $"Gemini returned an error ({(int)response.StatusCode}). Try again later.")
+                    _ => new TrackerException(502, $"Gemini returned an error ({(int)response.StatusCode}{Reason(text)}). Try again later.")
                 };
             }
 
@@ -210,6 +210,26 @@ public class ReportAssistant
                 throw new TrackerException(502, "Gemini returned no text. Try again.");
             return draft.Trim();
         }
+    }
+
+    // Google's own short explanation of an error ("The model is overloaded..."), so staff can see
+    // why. It never holds the API key (that is sent in a header, not in the request body).
+    public static string Reason(string errorJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(errorJson);
+            if (doc.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message)
+                && message.GetString() is { Length: > 0 } text)
+            {
+                text = string.Join(' ', text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
+                return ": " + (text.Length > 200 ? text[..200] + "…" : text);
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        return "";
     }
 
     private static string Retry(IReadOnlyList<string>? unknown) =>

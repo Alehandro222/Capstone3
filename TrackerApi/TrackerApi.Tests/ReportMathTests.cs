@@ -92,4 +92,22 @@ public class ReportMathTests
     {
         Assert.Equal(unknown, string.Join(",", ReportMath.UnknownNumbers(draft, facts)));
     }
+
+    [Theory]
+    [InlineData("{ \"error\": { \"code\": 503, \"message\": \"The model is overloaded.\\nPlease try again later.\" } }", ": The model is overloaded. Please try again later.")]
+    [InlineData("not json", "")]
+    [InlineData("{ \"error\": { \"code\": 503 } }", "")]
+    [InlineData("", "")]
+    public void Googles_error_message_is_shown_short_and_on_one_line(string json, string expected)
+    {
+        Assert.Equal(expected, ReportAssistant.Reason(json));
+    }
+
+    [Fact]
+    public void A_very_long_google_message_is_cut()
+    {
+        var reason = ReportAssistant.Reason("{ \"error\": { \"message\": \"" + new string('x', 500) + "\" } }");
+        Assert.True(reason.Length < 210);
+        Assert.EndsWith("…", reason);
+    }
 }
