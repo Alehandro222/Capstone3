@@ -111,6 +111,25 @@ phone / dashboard / kiosk ──https──▶ Netlify ──/api/* (signed)─�
 9. **Backups**: Supabase's free plan has no backups you can download. Before real data, either
    upgrade, or export regularly (Supabase dashboard → Database → Backups / `pg_dump`), and keep
    exports no longer than a year (DTC's rule).
+10. **Sleep and restarts (Render free plan).** The service sleeps after about 15 minutes without
+    a request. The next request wakes it, which takes tens of seconds and starts a new copy of the
+    whole API. Deploys and *Restart* do the same. What that does:
+    | | After a restart |
+    |---|---|
+    | Visits, passes, waitlist, staff accounts, saved reports | Kept (database) |
+    | Computer sessions and their time limits | Kept: the end time is a date in the database, not a timer |
+    | Staff sign-in | Kept: the cookie keys are stored in the database |
+    | A report that is queued or running | Lost. On start, the worker marks it *Failed* ("The server restarted while this report was being made") |
+    | Rate-limit counters | Reset to zero |
+
+    For the monthly report flow, this means the first request after a quiet period can arrive while
+    the API is waking up. A failed run is shown as failed, so start it again; the flow's retry
+    (wait 30 minutes, start again) covers a failed or text-less first try.
+
+    Known and not explained: on 22 November a run finished as *Done* with a valid checked text but
+    still carried the "server restarted" note. The server had been up about three minutes, so a
+    cold start doesn't explain it. Treat that note on a *Done* report as untrustworthy until
+    the cause is found (Render logs for that time would show whether the API restarted).
 
 ## C. The kiosk PCs
 
