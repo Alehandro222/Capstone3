@@ -284,8 +284,10 @@ public class ReportRunner
 
     // ---- Reading ----------------------------------------------------------------------------
 
-    public static ReportRunDto ToDto(ReportRun r) => new(
-        r.Id, r.Kind, r.From, r.To, r.Status, r.Step, r.Note, r.Model, r.Facts,
-        r.Document is null ? null : JsonSerializer.Deserialize<ReportDocumentDto>(r.Document, DocumentJson),
-        r.CreatedAt, r.FinishedAt);
+    public static ReportRunDto ToDto(ReportRun r)
+    {
+        var doc = r.Document is null ? null : JsonSerializer.Deserialize<ReportDocumentDto>(r.Document, DocumentJson);
+        return new(r.Id, r.Kind, r.From, r.To, r.Status, r.Step, r.Note, r.Model, r.Facts, doc,
+            r.CreatedAt, r.FinishedAt, doc is null ? null : ReportEmail.Html(doc));
+    }
 }

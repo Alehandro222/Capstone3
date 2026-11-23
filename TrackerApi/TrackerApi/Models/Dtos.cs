@@ -225,8 +225,10 @@ public record ReportRunListItemDto(int Id, ReportKind Kind, DateOnly From, DateO
     string? Note, DateTime CreatedAt, DateTime? FinishedAt);
 
 // SentToGemini: exactly the counts that were sent (shown to staff next to the report).
+// EmailHtml: the finished report as an HTML email body (ReportEmail), for the automation flows.
 public record ReportRunDto(int Id, ReportKind Kind, DateOnly From, DateOnly To, RunStatus Status, string Step,
-    string? Note, string? Model, string? SentToGemini, ReportDocumentDto? Document, DateTime CreatedAt, DateTime? FinishedAt);
+    string? Note, string? Model, string? SentToGemini, ReportDocumentDto? Document, DateTime CreatedAt, DateTime? FinishedAt,
+    string? EmailHtml = null);
 
 public record AssistantStatusDto(bool Configured, string Model);
 

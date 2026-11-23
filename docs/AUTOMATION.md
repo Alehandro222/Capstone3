@@ -52,9 +52,12 @@ Steps (weekly and monthly; daily stops after the first email):
 3. **HTTP:** `POST` the run with `previous: true` (no date maths in the flow).
 4. **Delay:** 2 minutes.
 5. **HTTP `GET`** the run.
-6. **Router:** if `document.narrativeChecked` is true, **email** an **admin** (not the partners) with
-   `document.narrative`. The admin reads it and forwards it: the number check proves a figure is in
-   the data, not that it is used for the right thing.
+6. **Router:** if `document.narrativeChecked` is true, **email** an **admin** (not the partners) as
+   **HTML** with `emailHtml` as the body: a short overview (Gemini, number-checked) followed by tables
+   built by code (comparison, who came and what they used, computers; rows with a count of 0 are
+   left out). No Excel is attached: every day, hour and computer is in the dashboard. The admin reads
+   it and forwards it: the number check proves a figure is in the data, not that it is used for the
+   right thing.
 7. Otherwise (no Gemini text): wait 30 minutes, wake the server again (wait 1 minute), start the
    report again, wait 2 minutes, read it, and email the result with its status and note. Once only.
 

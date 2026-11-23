@@ -68,16 +68,12 @@ public class ReportAssistant
             "- A visitor can tick several sectors and services, so those totals can exceed the number of visits; say so if you compare them.\n" +
             "- Times are Philippine time. Write hours as given, e.g. 13:00, and only hours that are listed. Write dates as given (2026-11-01), never as 'November 1'; a month and year such as 'November 2026' is fine. " +
             "Write age groups, sectors and computer names exactly as labelled in the counts.\n" +
-            "- This text is read in an email by an administrator, who finds the full tables, charts and every count in the dashboard. So write a short, friendly overview, not a full listing: " +
-            "about 150 to 250 words, clear and polite English, no jargon. Never list every day, hour or computer; name only what stands out (the busiest day or hour, the most-used computers, the largest groups). Mention the waitlist only if it was used.\n" +
+            "- This text is the short overview at the top of an email. Code adds the tables below it (comparison with the previous period, who came and what they used, computers used) " +
+            "with every count, so do not repeat them and never list every day, hour, group or computer. Write about 60 to 120 words, in clear, friendly English, no jargon. " +
+            "Mention the waitlist only if it was used.\n" +
             "- Format: Markdown with '## ' headings and '- ' bullet points only, one short line per bullet. No tables, no other formatting.\n" +
-            "- Sections, in this order, each with at most four bullets, skipping a section that has nothing to say: " +
-            "'At a glance' (visits, visitors who used a computer, computer sessions and hours, busiest day and hour); " +
-            "'Who came' (the largest age group, sex and sectors, with their shares of visits); " +
-            "'What they used' (the services most used, and how visitors registered, only if one way clearly leads); " +
-            "'Computers' (how sessions ended only if something stands out, and the busiest computers); " +
-            "'Compared with the previous period' (visits, computer sessions and computer hours: now, before, change); " +
-            "'Suggestions' (one or two, each labelled as a suggestion).";
+            "- Sections, in this order: '## Overview' (at most four bullets: the main picture of visits and computer use, what stands out such as the busiest day or hour or the largest group, " +
+            "and the main change from the previous period); '## Suggestions' (one or two bullets, each starting with 'Suggestion:'; leave the section out if there is nothing useful to suggest).";
     }
 
     // The anonymous facts for a report period, exactly as they are sent to Gemini.
