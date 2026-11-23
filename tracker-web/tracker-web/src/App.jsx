@@ -13,9 +13,12 @@ import StaffAccounts from './dashboard/StaffAccounts.jsx'
 import VisitorLog from './dashboard/VisitorLog.jsx'
 import Waitlist from './dashboard/Waitlist.jsx'
 import { ConfirmDialog, FormDialog } from './dashboard/ui.jsx'
-import { heldForWaitlist, heldNames } from './dashboard/format.js'
+import { STATUS_LABEL, STATUS_TONE, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './dashboard/format.js'
+import { TIME_ZONE, serverNow } from './time.js'
+import '@fontsource-variable/figtree'
 import './dashboard/dashboard.css'
 import './help.css'
+import './dashboard/theme.css'
 
 const REFRESH_MS = 5000 // re-fetch every 5 seconds so the board stays current
 
@@ -42,6 +45,7 @@ export default function App({ me, onSignOut }) {
     computers: [], sessions: [], tickets: [], waitlist: [], problems: [], passes: [],
   })
   const [loaded, setLoaded] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState(0) // when the board last refreshed, for the "Updated" line
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0) // bumped after every action, for screens that load their own data
   const [dialog, setDialog] = useState(null)
@@ -63,6 +67,7 @@ export default function App({ me, onSignOut }) {
       setData({ computers, sessions, tickets, waitlist, problems, passes })
       setError('')
       setLoaded(true)
+      setUpdatedAt(serverNow())
     } catch (e) {
       if (e.status === 401) return onSignOut() // signed out elsewhere, deactivated, or the sign-in expired
       // Cleared by the next successful refresh, e.g. once a restarting API is back.
@@ -126,14 +131,15 @@ export default function App({ me, onSignOut }) {
   }
 
   return (
-    <div className="page">
+    <div className="page dash">
       <a className="skip-link" href="#main">Skip to content</a>
+      <div className="shell">
       <header className="header">
         <div>
-          <h1>MISA Computer System Tracker</h1>
-          <p className="subtitle">DICT Digital Transformation Center, Baguio City</p>
+          <h1>{greeting()}, {me.fullName.split(' ')[0]}</h1>
+          <p className="subtitle">MISA at the DICT Digital Transformation Center, Baguio City</p>
           <p className="signed-in">
-            Signed in as <strong>{me.fullName}</strong> ({me.role})
+            {me.role}
             <button className="link-button" onClick={() => setDialog({ type: 'password' })}>
               Change password
             </button>
@@ -145,14 +151,15 @@ export default function App({ me, onSignOut }) {
             </button>
           </p>
         </div>
-        <div className="summary">
-          <Stat label="Available" value={count('Available')} tone="available" />
-          <Stat label="In use" value={count('InUse')} tone="inuse" />
-          <Stat label="Reserved" value={count('Reserved')} tone="reserved" />
-          <Stat label="Unavailable" value={count('Maintenance', 'Offline')} tone="broken" />
-        </div>
+        <Updated at={updatedAt} stale={!!error} />
       </header>
 
+      {loaded && (
+        <LiveStrip computers={computers} sessions={sessions} onPick={() => setTab('board')}
+          summary={`${count('Available')} free, ${count('InUse')} in use, ${count('Reserved')} reserved, ${count('Maintenance', 'Offline')} unavailable`} />
+      )}
+
+      <div className="layout">
       <nav className="nav" aria-label="Sections">
         {TABS.filter((t) => !t.admin || isAdmin).map((t) => (
           <button
@@ -216,6 +223,8 @@ export default function App({ me, onSignOut }) {
       {tab === 'audit' && isAdmin && <AuditLog />}
 
       </main>
+      </div>
+      </div>
 
       {dialog?.type === 'walkin' && (
         <WalkInDialog
@@ -317,12 +326,45 @@ function heldWarning(computers, waitlist) {
     'of the last person offered one; they go back to waiting.'
 }
 
-function Stat({ label, value, tone }) {
+// Time-of-day greeting in Philippine time.
+function greeting() {
+  const h = Number(new Intl.DateTimeFormat('en-PH', { timeZone: TIME_ZONE, hour: 'numeric', hour12: false }).format(serverNow())) % 24
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+function Updated({ at, stale }) {
+  const now = useNow()
+  const secs = at ? Math.max(0, Math.round((now - at) / 1000)) : null
   return (
-    <div className={`stat stat-${tone}`}>
-      <span className="stat-value">{value}</span>
-      <span className="stat-label">{label}</span>
-    </div>
+    <p className={stale ? 'updated updated-stale' : 'updated'}>
+      {stale ? 'Not updating right now' : secs === null ? 'Loading…' : `Updated ${secs} s ago`}
+      {at ? ` (${clock(new Date(at).toISOString())})` : ''}
+    </p>
+  )
+}
+
+// Every PC as a tile, shown on every tab; opens the Computers tab.
+function LiveStrip({ computers, sessions, onPick, summary }) {
+  const now = useNow()
+  return (
+    <section aria-label={`Computers: ${summary}`}>
+    <ul className="strip">
+      {computers.map((c) => {
+        const s = sessions.find((x) => x.computerId === c.id)
+        const endsAt = s?.scheduledEndAt ?? c.sessionEndsAt
+        const left = c.status === 'InUse' && endsAt ? msUntil(endsAt, now) : null
+        return (
+          <li key={c.id}>
+            <button className={`strip-tile strip-${STATUS_TONE[c.status]}${left !== null && left <= 600000 ? ' strip-warn' : ''}`}
+              onClick={onPick}>
+              <span className="strip-name">{c.name}</span>
+              <span className="strip-state">{left !== null ? countdown(left) : STATUS_LABEL[c.status] ?? c.status}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+    </section>
   )
 }
 

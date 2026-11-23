@@ -1,0 +1,164 @@
+/* Staff dashboard look: "Baguio pine". Everything is scoped under .dash so the visitor
+   phone app, poster and sign-in keep their own look. Loaded after dashboard.css. */
+
+.dash {
+  --bg: #e9f0eb;
+  --surface: #fffdfb;
+  --text: #20372f;
+  --muted: #4f6158;
+  --border: #d5e0d8;
+  --primary: #2b5a49;
+  --on-primary: #ffffff;
+  --available: #1f6b43;
+  --available-bg: #ddf0e3;
+  --inuse: #7a4b00;
+  --inuse-bg: #fbe9c2;
+  --reserved: #4f3fb0;
+  --reserved-bg: #e8e4fa;
+  --broken: #b8304d;
+  --broken-bg: #fbe3e8;
+  --offline: #4a5560;
+  --offline-bg: #e3e7ea;
+  --radius: 16px;
+  font-family: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+@media (prefers-color-scheme: dark) {
+  .dash {
+    --bg: #131c18;
+    --surface: #1b2722;
+    --text: #e6efe9;
+    --muted: #a3b5aa;
+    --border: #2c3b34;
+    --primary: #8fd1b0;
+    --on-primary: #0e1a15;
+    --available: #62d194;
+    --available-bg: #17301f;
+    --inuse: #f0b562;
+    --inuse-bg: #35280f;
+    --reserved: #b3a8ff;
+    --reserved-bg: #26214a;
+    --broken: #ff8fa5;
+    --broken-bg: #3d1a23;
+    --offline: #b0bac4;
+    --offline-bg: #262c36;
+  }
+}
+
+.dash.page { max-width: none; margin: 0; padding: 20px clamp(12px, 3vw, 32px) 64px; }
+.dash .shell { max-width: 1320px; margin: 0 auto; }
+
+/* Greeting */
+.dash .header { align-items: flex-end; margin-bottom: 14px; }
+.dash .header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; }
+.dash .signed-in { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
+.dash .updated { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+.dash .updated::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--available); }
+.dash .updated-stale::before { background: var(--broken); }
+
+/* The memorable part: every PC as a tile, always visible */
+.dash .strip {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+  background: var(--surface);
+  border-radius: 20px;
+}
+.dash .strip-tile {
+  font: inherit;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 8px 6px;
+  text-align: center;
+  cursor: pointer;
+  display: grid;
+  gap: 1px;
+  color: inherit;
+}
+.dash .strip-name { font-weight: 600; font-size: 0.85rem; }
+.dash .strip-state { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.dash .strip-tile:hover { outline: 2px solid currentColor; }
+.dash .strip-available { background: var(--available-bg); color: var(--available); }
+.dash .strip-inuse { background: var(--inuse-bg); color: var(--inuse); }
+.dash .strip-reserved { background: var(--reserved-bg); color: var(--reserved); }
+.dash .strip-broken { background: var(--broken-bg); color: var(--broken); }
+.dash .strip-offline { background: var(--offline-bg); color: var(--offline); }
+.dash .strip-warn { box-shadow: inset 0 0 0 2px var(--broken); }
+.dash .strip-tile:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+/* Left rail */
+.dash .layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: start; }
+.dash .nav { flex-direction: column; flex-wrap: nowrap; gap: 2px; margin: 0; position: sticky; top: 16px; }
+.dash .nav-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: var(--text);
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-weight: 500;
+  text-align: left;
+}
+.dash .nav-tab:hover { background: var(--surface); }
+.dash .nav-tab-on, .dash .nav-tab-on:hover { background: var(--primary); color: var(--on-primary); }
+.dash .nav-count { background: var(--broken); color: #fff; }
+.dash .nav-tab-on .nav-count { background: var(--on-primary); color: var(--broken); }
+@media (max-width: 860px) {
+  .dash .layout { grid-template-columns: 1fr; gap: 12px; }
+  .dash .nav { flex-direction: row; overflow-x: auto; position: static; padding-bottom: 4px; }
+  .dash .nav-tab { white-space: nowrap; background: var(--surface); }
+}
+
+/* Surfaces: softer, borderless cards with generous radius */
+.dash .card, .dash .panel, .dash .tile, .dash .help-card, .dash .table-wrap, .dash .pass-card, .dash .report-doc {
+  border-color: transparent;
+  border-radius: 20px;
+}
+.dash .card { border-top-width: 1px; border-top-color: transparent; position: relative; }
+.dash .card::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: 0;
+  width: 44px;
+  height: 5px;
+  border-radius: 0 0 6px 6px;
+  background: var(--border);
+}
+.dash .card-available::before { background: var(--available); }
+.dash .card-inuse::before { background: var(--inuse); }
+.dash .card-reserved::before { background: var(--reserved); }
+.dash .card-broken::before { background: var(--broken); }
+.dash .card-offline::before { background: var(--offline); }
+.dash .row, .dash .peripheral { border-color: transparent; background: var(--bg); border-radius: 12px; }
+.dash .modal { border-radius: 24px; background: var(--surface); color: var(--text); }
+.dash .overlay { background: rgba(19, 28, 24, 0.6); }
+
+/* Buttons and controls */
+.dash .btn { border-radius: 12px; font-weight: 500; font-family: inherit; padding: 9px 16px; }
+.dash .btn:hover:not(:disabled) { border-color: var(--primary); }
+.dash .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.dash .btn-help { border-color: var(--primary); color: var(--primary); }
+.dash .seg { border-radius: 12px; font-family: inherit; }
+.dash .seg-on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.dash .field input, .dash .field textarea, .dash .field select, .dash .inline-field input,
+.dash .inline-field select, .dash .checkin-input { border-radius: 12px; font-family: inherit; }
+.dash button, .dash input, .dash select, .dash textarea { font-family: inherit; }
+
+.dash .stat { border-radius: 16px; }
+.dash .badge { font-weight: 600; }
+.dash .toast { background: var(--text); color: var(--bg); }
+.dash .banner { border-radius: 16px; }
+.dash .empty { border-radius: 16px; }
+.dash .table-wrap { background: var(--surface); }
+.dash .table tbody tr:hover td { background: var(--bg); }
+.dash .tile-value, .dash .timeleft-value, .dash .pass-name { letter-spacing: -0.01em; }
+.dash .hbar-fill, .dash .col-fill { background: var(--primary); }
+.dash .link-button { color: var(--primary); }
+.dash .skip-link { background: var(--primary); color: var(--on-primary); }
