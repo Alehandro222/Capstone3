@@ -60,6 +60,19 @@ function useScannerAnywhere(onScan) {
   }, [])
 }
 
+// A plain-language "what do I do now?" line for new volunteers.
+function nextStep({ pass, pending, held, waiting, free }) {
+  if (pass) {
+    return pass.status === 'Pending'
+      ? `Check that the name matches the visitor, then press "Check in and start session".`
+      : 'This pass cannot start a session. Press Clear and ask the visitor to show a new one.'
+  }
+  if (pending > 0) return `${pending} visitor${pending === 1 ? ' is' : 's are'} reserved and walking over. Scan their QR pass when they arrive.`
+  if (held > 0) return 'A PC is held for the next person on the waitlist. They pick it on their phone.'
+  if (waiting > 0 && free === 0) return 'Everyone is waiting for a PC. Check Computers for sessions about to end.'
+  return 'Scan a visitor’s QR pass, or register someone who has no phone on the right.'
+}
+
 // Help desk: check visitors in, register visitors without a phone, see who is waiting.
 //   computers, waitlist, pendingPasses   live data from the dashboard
 //   run(action, message)  runs an API action, refreshes the board, shows a toast; returns true on success
@@ -125,9 +138,13 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
   const free = computers.filter((c) => c.status === 'Available').length
   const held = heldForWaitlist(waitlist, now).length
   const pass = found?.pass
+  const next = nextStep({ pass, pending: pending.length, held, waiting: waitlist.length, free })
 
   return (
     <div className="desk">
+      <p className="desk-hint" role="status">
+        <strong>Next:</strong> {next}
+      </p>
       <section className="panel desk-checkin">
         <h2>Check in a visitor</h2>
         <p className="muted small">

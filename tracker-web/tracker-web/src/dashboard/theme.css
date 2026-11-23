@@ -2,50 +2,40 @@
    phone app, poster and sign-in keep their own look. Loaded after dashboard.css. */
 
 .dash {
-  --bg: #e9f0eb;
-  --surface: #fffdfb;
-  --text: #20372f;
-  --muted: #4f6158;
-  --border: #d5e0d8;
-  --primary: #2b5a49;
-  --on-primary: #ffffff;
-  --available: #1f6b43;
-  --available-bg: #ddf0e3;
-  --inuse: #7a4b00;
-  --inuse-bg: #fbe9c2;
-  --reserved: #4f3fb0;
-  --reserved-bg: #e8e4fa;
-  --broken: #b8304d;
-  --broken-bg: #fbe3e8;
-  --offline: #4a5560;
-  --offline-bg: #e3e7ea;
+  /* light-dark() follows the device unless the person picked a theme (data-theme). */
+  color-scheme: light dark;
+  --bg: light-dark(#e9f0eb, #131c18);
+  --surface: light-dark(#fffdfb, #1b2722);
+  --text: light-dark(#20372f, #e6efe9);
+  --muted: light-dark(#4f6158, #a3b5aa);
+  --border: light-dark(#d5e0d8, #2c3b34);
+  --primary: light-dark(#2b5a49, #8fd1b0);
+  --on-primary: light-dark(#ffffff, #0e1a15);
+  --available: light-dark(#1f6b43, #62d194);
+  --available-bg: light-dark(#ddf0e3, #17301f);
+  --inuse: light-dark(#7a4b00, #f0b562);
+  --inuse-bg: light-dark(#fbe9c2, #35280f);
+  --reserved: light-dark(#4f3fb0, #b3a8ff);
+  --reserved-bg: light-dark(#e8e4fa, #26214a);
+  --broken: light-dark(#b8304d, #ff8fa5);
+  --broken-bg: light-dark(#fbe3e8, #3d1a23);
+  --offline: light-dark(#4a5560, #b0bac4);
+  --offline-bg: light-dark(#e3e7ea, #262c36);
   --radius: 16px;
+  --pad: 18px;
+  --row-pad: 8px 10px;
+  --cell-pad: 8px 12px;
   font-family: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
 }
-@media (prefers-color-scheme: dark) {
-  .dash {
-    --bg: #131c18;
-    --surface: #1b2722;
-    --text: #e6efe9;
-    --muted: #a3b5aa;
-    --border: #2c3b34;
-    --primary: #8fd1b0;
-    --on-primary: #0e1a15;
-    --available: #62d194;
-    --available-bg: #17301f;
-    --inuse: #f0b562;
-    --inuse-bg: #35280f;
-    --reserved: #b3a8ff;
-    --reserved-bg: #26214a;
-    --broken: #ff8fa5;
-    --broken-bg: #3d1a23;
-    --offline: #b0bac4;
-    --offline-bg: #262c36;
-  }
-}
+.dash[data-theme='light'] { color-scheme: light; }
+.dash[data-theme='dark'] { color-scheme: dark; }
+.dash[data-density='compact'] { --pad: 10px; --row-pad: 4px 8px; --cell-pad: 4px 10px; }
+.dash[data-density='compact'] .stack, .dash[data-density='compact'] .stack-lg { gap: 8px; }
+.dash[data-density='compact'] .card { padding: 10px; gap: 6px; }
+.dash[data-density='compact'] .strip-tile { padding: 4px; }
 
 .dash.page { max-width: none; margin: 0; padding: 20px clamp(12px, 3vw, 32px) 64px; }
 .dash .shell { max-width: 1320px; margin: 0 auto; }
@@ -136,7 +126,7 @@
 .dash .card-reserved::before { background: var(--reserved); }
 .dash .card-broken::before { background: var(--broken); }
 .dash .card-offline::before { background: var(--offline); }
-.dash .row, .dash .peripheral { border-color: transparent; background: var(--bg); border-radius: 12px; }
+.dash .row, .dash .peripheral { padding: var(--row-pad); border-color: transparent; background: var(--bg); border-radius: 12px; }
 .dash .modal { border-radius: 24px; background: var(--surface); color: var(--text); }
 .dash .overlay { background: rgba(19, 28, 24, 0.6); }
 
@@ -157,8 +147,42 @@
 .dash .banner { border-radius: 16px; }
 .dash .empty { border-radius: 16px; }
 .dash .table-wrap { background: var(--surface); }
+.dash .table th, .dash .table td { padding: var(--cell-pad); }
+.dash .panel { padding: var(--pad); }
 .dash .table tbody tr:hover td { background: var(--bg); }
 .dash .tile-value, .dash .timeleft-value, .dash .pass-name { letter-spacing: -0.01em; }
 .dash .hbar-fill, .dash .col-fill { background: var(--primary); }
 .dash .link-button { color: var(--primary); }
 .dash .skip-link { background: var(--primary); color: var(--on-primary); }
+
+/* Help desk hint, header controls */
+.dash .desk-hint { grid-column: 1 / -1; margin: 0; padding: 10px 16px; border-radius: 14px; background: var(--surface); }
+.dash .header-side { display: grid; gap: 6px; justify-items: end; }
+.dash .prefs { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 4px; justify-content: flex-end; font-size: 0.85rem; }
+
+/* Attention tray */
+.dash .tray { position: relative; }
+.dash .tray-btn { background: var(--surface); }
+.dash .tray-on { background: var(--broken); border-color: var(--broken); color: var(--surface); }
+.dash .tray-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 12; width: min(360px, 90vw);
+  background: var(--surface); border-radius: 18px; padding: 12px; display: grid; gap: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.dash .tray-panel .row { justify-content: flex-start; }
+.dash .tray-panel .link-button { text-align: left; margin: 0; }
+
+/* Quick search */
+.dash .palette-overlay { align-items: start; padding-top: 12vh; }
+.dash .palette { max-width: 520px; gap: 10px; padding: 14px; }
+.dash .palette-input { font: inherit; font-size: 1.05rem; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); }
+.dash .palette-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 50vh; overflow-y: auto; }
+.dash .palette-item { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 10px; cursor: pointer; }
+.dash .palette-on { background: var(--primary); color: var(--on-primary); }
+.dash .palette-hint { opacity: 0.85; font-size: 0.85rem; }
+
+/* Motion: a tile rings once when its PC changes status; dialogs ease in. (Reduced-motion is switched off globally.) */
+@keyframes tile-ring { from { box-shadow: 0 0 0 0 currentColor; } to { box-shadow: 0 0 0 10px transparent; } }
+.dash .strip-changed { animation: tile-ring 1.1s ease-out 2; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+.dash .modal { animation: modal-in 0.16s ease-out; }

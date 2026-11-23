@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, isUnreachable } from './api'
 import { startPolling } from './polling.js'
 import HelpRequests from './components/HelpRequests.jsx'
@@ -16,6 +16,7 @@ import { ConfirmDialog, FormDialog } from './dashboard/ui.jsx'
 import { STATUS_LABEL, STATUS_TONE, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './dashboard/format.js'
 import { TIME_ZONE, serverNow } from './time.js'
 import '@fontsource-variable/figtree'
+import { AttentionTray, CommandPalette, buildAlerts, useChime, usePrefs } from './dashboard/extras.jsx'
 import './dashboard/dashboard.css'
 import './help.css'
 import './dashboard/theme.css'
@@ -49,6 +50,8 @@ export default function App({ me, onSignOut }) {
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0) // bumped after every action, for screens that load their own data
   const [dialog, setDialog] = useState(null)
+  const [palette, setPalette] = useState(false)
+  const prefs = usePrefs()
   const [toast, setToast] = useState(null) // { text, bad }
   const toastTimer = useRef()
 
@@ -116,6 +119,18 @@ export default function App({ me, onSignOut }) {
   const close = () => setDialog(null)
   const detailsComputer = dialog?.type === 'details' ? computers.find((c) => c.id === dialog.computerId) : null
 
+  // Ctrl+K (or Cmd+K) opens the quick search from anywhere.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPalette((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   useEffect(() => {
     document.title = openRequests > 0 ? `(${openRequests}) MISA Tracker` : 'MISA Tracker'
   }, [openRequests])
@@ -131,7 +146,7 @@ export default function App({ me, onSignOut }) {
   }
 
   return (
-    <div className="page dash">
+    <div className="page dash" data-theme={prefs.theme} data-density={prefs.density}>
       <a className="skip-link" href="#main">Skip to content</a>
       <div className="shell">
       <header className="header">
@@ -151,7 +166,15 @@ export default function App({ me, onSignOut }) {
             </button>
           </p>
         </div>
-        <Updated at={updatedAt} stale={!!error} />
+        <div className="header-side">
+          <Updated at={updatedAt} stale={!!error} />
+          {loaded && <Attention data={data} prefs={prefs} onGo={setTab} />}
+          <p className="prefs">
+            <button className="link-button" onClick={() => setPalette(true)}>Quick search (Ctrl+K)</button>
+            <button className="link-button" onClick={prefs.cycleTheme}>Theme: {prefs.theme}</button>
+            <button className="link-button" onClick={prefs.toggleDensity}>Rows: {prefs.density}</button>
+          </p>
+        </div>
       </header>
 
       {loaded && (
@@ -308,6 +331,26 @@ export default function App({ me, onSignOut }) {
         />
       )}
 
+      {palette && (
+        <CommandPalette
+          onClose={() => setPalette(false)}
+          commands={[
+            ...TABS.filter((t) => !t.admin || isAdmin).map((t) => ({ id: `tab-${t.key}`, label: `Go to ${t.label}`, run: () => setTab(t.key) })),
+            ...computers.map((c) => ({
+              id: `pc-${c.id}`,
+              label: `${c.name} details`,
+              hint: STATUS_LABEL[c.status] ?? c.status,
+              run: () => setDialog({ type: 'details', computerId: c.id }),
+            })),
+            { id: 'walkin', label: 'Register a visitor and give a PC', run: () => setDialog({ type: 'walkin', choose: true }) },
+            { id: 'logvisit', label: 'Log a visit (no PC)', run: () => setDialog({ type: 'walkin' }) },
+            { id: 'problem', label: 'Report a problem on a PC', run: () => setDialog({ type: 'report' }) },
+            { id: 'theme', label: 'Change theme (system, light, dark)', run: prefs.cycleTheme },
+            { id: 'density', label: 'Switch row density', run: prefs.toggleDensity },
+          ]}
+        />
+      )}
+
       {toast && (
         <div className={toast.bad ? 'toast toast-bad' : 'toast'} role="status">
           {toast.text}
@@ -324,6 +367,16 @@ function heldWarning(computers, waitlist) {
   if (held.length === 0 || held.length < free) return ''
   return `Every free PC is held for the waitlist: ${heldNames(held)}. Giving one to this visitor takes the turn ` +
     'of the last person offered one; they go back to waiting.'
+}
+
+// The "needs attention" button and its optional sound. Re-renders each second for the countdowns.
+function Attention({ data, prefs, onGo }) {
+  const now = useNow()
+  const alerts = buildAlerts(data, now)
+  const keys = alerts.map((a) => a.key).join('|')
+  const stable = useMemo(() => alerts, [keys]) // eslint-disable-line react-hooks/exhaustive-deps
+  useChime(stable, prefs.sound)
+  return <AttentionTray alerts={alerts} sound={prefs.sound} onToggleSound={prefs.toggleSound} onGo={onGo} />
 }
 
 // Time-of-day greeting in Philippine time.
@@ -346,6 +399,19 @@ function Updated({ at, stale }) {
 // Every PC as a tile, shown on every tab; opens the Computers tab.
 function LiveStrip({ computers, sessions, onPick, summary }) {
   const now = useNow()
+  const before = useRef(null)
+  const [changed, setChanged] = useState(() => new Set())
+  useEffect(() => {
+    const status = Object.fromEntries(computers.map((c) => [c.id, c.status]))
+    if (before.current) {
+      const ids = computers.filter((c) => before.current[c.id] && before.current[c.id] !== c.status).map((c) => c.id)
+      if (ids.length) {
+        setChanged(new Set(ids))
+        setTimeout(() => setChanged(new Set()), 2400)
+      }
+    }
+    before.current = status
+  }, [computers])
   return (
     <section aria-label={`Computers: ${summary}`}>
     <ul className="strip">
@@ -355,7 +421,7 @@ function LiveStrip({ computers, sessions, onPick, summary }) {
         const left = c.status === 'InUse' && endsAt ? msUntil(endsAt, now) : null
         return (
           <li key={c.id}>
-            <button className={`strip-tile strip-${STATUS_TONE[c.status]}${left !== null && left <= 600000 ? ' strip-warn' : ''}`}
+            <button className={`strip-tile strip-${STATUS_TONE[c.status]}${left !== null && left <= 600000 ? ' strip-warn' : ''}${changed.has(c.id) ? ' strip-changed' : ''}`}
               onClick={onPick}>
               <span className="strip-name">{c.name}</span>
               <span className="strip-state">{left !== null ? countdown(left) : STATUS_LABEL[c.status] ?? c.status}</span>

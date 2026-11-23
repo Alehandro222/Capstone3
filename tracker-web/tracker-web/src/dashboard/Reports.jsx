@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { todayInManila } from '../time.js'
-import { PERIODS, dayLabel, hourLabel, monthStart, periodRange } from './periods.js'
+import { PERIODS, dayLabel, hourLabel, monthStart, periodRange, shiftDay } from './periods.js'
 import { LABELS, fmt } from './reportLabels.js'
 import ReportRuns from './ReportRuns.jsx'
 import { Empty } from './ui.jsx'
@@ -29,6 +29,20 @@ export default function Reports({ isAdmin, refreshKey }) {
       current = false
     }
   }, [from, to, refreshKey])
+
+  // The same number of days just before this period, to show "up 4 on the period before".
+  const [previous, setPrevious] = useState(null)
+  useEffect(() => {
+    setPrevious(null)
+    if (!from || !to) return undefined
+    const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1
+    let current = true
+    api.getReport(shiftDay(from, -days), shiftDay(from, -1)).then((r) => current && setPrevious(r)).catch(() => {})
+    return () => {
+      current = false
+    }
+  }, [from, to, refreshKey])
+  const delta = (key) => (previous && report ? change(report[key] - previous[key]) : null)
 
   async function download(key, params) {
     setBusy(key)
@@ -89,8 +103,8 @@ export default function Reports({ isAdmin, refreshKey }) {
           </p>
 
           <div className="tiles">
-            <Tile value={fmt(r.visits)} label="Visits" />
-            <Tile value={fmt(r.sessions)} label="PC sessions" note={`${fmt(r.visitsWithComputer)} visitors used a PC`} />
+            <Tile value={fmt(r.visits)} label="Visits" note={delta('visits')} />
+            <Tile value={fmt(r.sessions)} label="PC sessions" note={[`${fmt(r.visitsWithComputer)} visitors used a PC`, delta('sessions')].filter(Boolean).join(' · ')} />
             <Tile value={fmt(r.sessionHours)} label="PC hours" note={r.runningSessions ? `${r.runningSessions} still running` : null} />
             <Tile value={`${fmt(r.averageSessionMinutes)} min`} label="Average session" note={r.extensions ? `${r.extensions} extensions` : null} />
           </div>
@@ -195,6 +209,12 @@ export default function Reports({ isAdmin, refreshKey }) {
 // The library's opening hours, roughly: always show 7 AM to 8 PM, plus any other hour with data.
 function openHours(hours) {
   return hours.filter((h) => (Number(h.key) >= 7 && Number(h.key) <= 20) || h.count > 0)
+}
+
+// "up 4" / "down 2" / "same" compared with the period before.
+function change(diff) {
+  const n = Math.round(diff * 10) / 10
+  return n === 0 ? 'same as before' : `${n > 0 ? 'up' : 'down'} ${fmt(Math.abs(n))} on the period before`
 }
 
 function Tile({ value, label, note }) {
