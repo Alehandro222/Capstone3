@@ -91,8 +91,8 @@ public static class ReportMath
         var lines = new List<string> { "## Summary" };
         lines.Add(r.Visits == 0
             ? FormattableString.Invariant($"- No visits were logged for {period}.")
-            : FormattableString.Invariant($"- {r.Visits} visits were logged for {period}; {r.VisitsWithComputer} of the visitors used a computer, in {r.Sessions} sessions totalling {r.SessionHours} hours."));
-        if (BusiestHour(r) is { } hour) lines.Add(FormattableString.Invariant($"- The busiest hour was {hour.Hour}, with {hour.Visits} visits."));
+            : FormattableString.Invariant($"- {r.Visits} visit(s) were logged for {period}; {r.VisitsWithComputer} of the visitors used a computer, in {r.Sessions} session(s) totalling {r.SessionHours} hour(s)."));
+        if (BusiestHour(r) is { } hour) lines.Add(FormattableString.Invariant($"- The busiest hour was {hour.Hour}, with {hour.Visits} visit(s)."));
         if (r.Waitlist.Joined > 0)
             lines.Add(FormattableString.Invariant($"- {r.Waitlist.Joined} people joined the waitlist; {r.Waitlist.GotAComputer} got a computer."));
         if (comparison?.FirstOrDefault(c => c.Measure == "Visits") is { } v)

@@ -188,7 +188,7 @@ public class AssistantTests
         var run = await RunAsync(factory, admin, "Day", "2026-11-07");
         Assert.Empty(gemini.Requests);
         Assert.Null(run.SentToGemini);
-        Assert.Contains("2 visits were logged for November 7, 2026", run.Document!.Narrative);
+        Assert.Contains("2 visit(s) were logged for November 7, 2026", run.Document!.Narrative);
         Assert.True(run.Document.NarrativeChecked);
     }
 
