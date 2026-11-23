@@ -32,14 +32,33 @@ through Netlify. Locally, use `http://localhost:5080/api/...` (from Docker: `htt
 Weekly: `{ "kind": "Week", "date": "<any day in the week>" }`. Daily reports are written by code and
 don't use Gemini.
 
-## 3. Activepieces flow (about 5 steps a month)
+## 3. Activepieces flows: daily, weekly, monthly
 
-1. **Schedule:** the 1st of each month, 08:00, time zone Asia/Manila.
-2. **HTTP:** `POST` the run with `previous: true` (no date maths in the flow).
-3. **Delay:** 2 minutes.
-4. **HTTP `GET`** the run. If `status` is not `Done`, email yourself an alert and stop.
-5. **Email** an **admin** (not the partners) with `document.narrative` in the body and the Excel attached
-   (the export call, "download as file"). The admin reads it and forwards it: the number check proves
-   a figure is in the data, not that it is used for the right thing.
+Three flows, one per report, started an hour apart. The API makes one report at a time (a second
+start gets 409 and nothing is sent), and a Monday that is also the 1st would otherwise start two
+at once. Keep each schedule at least an hour from the others.
+
+| Flow | Schedule (Asia/Manila) | Body | Text | Email |
+|---|---|---|---|---|
+| Daily | every day, 07:00 | `{ "kind": "Day", "previous": true }` | written by code | only if `document.current.visits` > 0 |
+| Weekly | Mondays, 08:00 | `{ "kind": "Week", "previous": true }` | Gemini, number-checked | always |
+| Monthly | the 1st, 09:00 | `{ "kind": "Month", "previous": true }` | Gemini, number-checked | always |
+
+Steps (weekly and monthly; daily stops after the first email):
+
+1. **Wake the server:** `GET /api/public/computers` through Netlify, continue on any failure. Render's
+   free plan sleeps after about 15 minutes, and waking can take 25 s, right at Netlify's 26 s limit.
+2. **Delay:** 1 minute.
+3. **HTTP:** `POST` the run with `previous: true` (no date maths in the flow).
+4. **Delay:** 2 minutes.
+5. **HTTP `GET`** the run.
+6. **Router:** if `document.narrativeChecked` is true, **email** an **admin** (not the partners) with
+   `document.narrative`. The admin reads it and forwards it: the number check proves a figure is in
+   the data, not that it is used for the right thing.
+7. Otherwise (no Gemini text): wait 30 minutes, wake the server again (wait 1 minute), start the
+   report again, wait 2 minutes, read it, and email the result with its status and note. Once only.
+
+Turn on Activepieces' failure email (project settings) so a failed step is not silent. After
+changing a flow, publish it again: edits apply to the draft only.
 
 Test it locally first (Activepieces in Docker, pointing at your own API), then hosted.
