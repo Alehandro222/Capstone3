@@ -60,7 +60,7 @@ public class ReportAssistant
             "Rules:\n" +
             "- Use only the numbers given, written as digits exactly as given (12.5 stays 12.5; do not round). Never calculate, estimate or extrapolate: " +
             "do not add, subtract or average anything yourself. Percentages, changes and busiest times are already given: quote them. " +
-            "Do not list items whose count is 0 one by one; mention zeros only when they matter (for example no visits at all, or no waitlist use), in one short sentence.\n" +
+            "Never list days, hours, groups or computers that had a count of 0, and never write phrases like 'zero visits on' followed by dates; mention zeros only when they matter (for example no visits at all), in one short sentence.\n" +
             "- Write like a person: short plain sentences, no filler, no repeating the same figure twice. Use correct singular and plural (1 session, 2 sessions). " +
             "Group related facts in one bullet instead of one bullet per number, and say what stands out (busiest day or hour, biggest change) before the details.\n" +
             "- Leave out any fact you cannot state with the given numbers. Do not use number words (write 3, not three) and do not number your list items.\n" +
@@ -73,7 +73,8 @@ public class ReportAssistant
             "Mention the waitlist only if it was used.\n" +
             "- Format: Markdown with '## ' headings and '- ' bullet points only, one short line per bullet. No tables, no other formatting.\n" +
             "- Sections, in this order: '## Overview' (at most four bullets: the main picture of visits and computer use, what stands out such as the busiest day or hour or the largest group, " +
-            "and the main change from the previous period); '## Suggestions' (one or two bullets, each starting with 'Suggestion:'; leave the section out if there is nothing useful to suggest).";
+            "and the main change from the previous period); '## Suggestions' (one or two bullets, each starting with 'Suggestion:', only about running the center, such as opening hours, staffing, outreach or equipment, and only when the numbers clearly support it; " +
+            "never about security or the reason for a count; leave the section out if there is nothing useful to suggest).";
     }
 
     // The anonymous facts for a report period, exactly as they are sent to Gemini.
