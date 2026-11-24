@@ -43,3 +43,27 @@ export default function PcToken({ computer, session, now, size = 104, compact = 
     </button>
   )
 }
+
+// The room as it is laid out: four PCs across, the front of the room on top.
+// dim(computer) greys out the PCs a filter hides; onPick(id) is called when one is clicked.
+export function Floor({ computers, sessions, now, size = 104, selectedId, dim, onPick }) {
+  return (
+    <div className="floor-plan">
+      <div className="floor-front"><span>Front of the room</span></div>
+      <div className="floor">
+        {computers.map((c) => (
+          <PcToken
+            key={c.id}
+            computer={c}
+            session={sessions.find((s) => s.computerId === c.id)}
+            now={now}
+            size={size}
+            dim={dim ? dim(c) : false}
+            selected={selectedId === c.id}
+            onClick={() => onPick(c.id)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}

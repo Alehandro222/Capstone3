@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import PeripheralList from '../components/PeripheralList.jsx'
 import { STATUS_LABEL, STATUS_TONE, ago, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './format.js'
-import PcToken from './PcToken.jsx'
+import { Floor } from './PcToken.jsx'
 import { Badge } from './ui.jsx'
 
 const WARN_MS = 10 * 60 * 1000 // the last 10 minutes: when visitors may extend
@@ -57,20 +57,8 @@ export default function Board({ computers, sessions, pendingPasses, waitlist, on
       {/* The room as it is laid out: four PCs across, the front of the room at the top. */}
       <div className="floor-wrap">
         <section className="floor-panel" aria-label="Floor plan">
-          <div className="floor-front"><span>Front of the room</span></div>
-          <div className="floor">
-            {computers.map((c) => (
-              <PcToken
-                key={c.id}
-                computer={c}
-                session={sessions.find((s) => s.computerId === c.id)}
-                now={now}
-                dim={!matches(filter, c.status)}
-                selected={selected?.id === c.id}
-                onClick={() => onSelect(c.id)}
-              />
-            ))}
-          </div>
+          <Floor computers={computers} sessions={sessions} now={now} selectedId={selected?.id}
+            dim={(c) => !matches(filter, c.status)} onPick={onSelect} />
         </section>
         {selected && (
           <div className="floor-card">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import { Floor } from './PcToken.jsx'
 import QrScanner from './QrScanner.jsx'
 import {
   PASS_STATUS_LABEL,
@@ -77,7 +78,7 @@ function nextStep({ pass, pending, held, waiting, free }) {
 //   computers, waitlist, pendingPasses   live data from the dashboard
 //   run(action, message)  runs an API action, refreshes the board, shows a toast; returns true on success
 //   onWalkIn()            opens the walk-in registration form
-export default function HelpDesk({ computers, waitlist, pendingPasses: pending, run, onWalkIn, onLogVisit }) {
+export default function HelpDesk({ computers, sessions, waitlist, pendingPasses: pending, run, onWalkIn, onLogVisit, onPickPc }) {
   const now = useNow()
   const inputRef = useRef(null)
   const [text, setText] = useState('')
@@ -249,6 +250,10 @@ export default function HelpDesk({ computers, waitlist, pendingPasses: pending, 
       </section>
 
       <aside className="desk-side">
+        <section className="desk-floor" aria-label="Floor plan">
+          <Floor computers={computers} sessions={sessions} now={now} size={72} onPick={onPickPc} />
+        </section>
+
         <section className="panel">
           <h2>Visitor without a phone</h2>
           <p className="muted small">Fill in the DTC form for them here.</p>

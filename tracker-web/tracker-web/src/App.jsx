@@ -194,7 +194,7 @@ export default function App({ me, onSignOut }) {
         ))}
       </nav>
 
-      {loaded && tab !== 'board' && (
+      {loaded && tab !== 'board' && tab !== 'desk' && (
         <LiveStrip computers={computers} sessions={sessions} onPick={(id) => { setSelectedPc(id); setTab('board') }}
           summary={`${count('Available')} free, ${count('InUse')} in use, ${count('Reserved')} reserved, ${count('Maintenance', 'Offline')} unavailable`} />
       )}
@@ -206,6 +206,8 @@ export default function App({ me, onSignOut }) {
       {loaded && tab === 'desk' && (
         <HelpDesk
           computers={computers}
+          sessions={sessions}
+          onPickPc={(id) => { setSelectedPc(id); setTab('board') }}
           waitlist={waitlist}
           pendingPasses={passes}
           run={run}

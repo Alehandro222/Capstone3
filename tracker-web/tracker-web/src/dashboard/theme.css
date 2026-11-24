@@ -39,6 +39,12 @@
 .dash[data-density='compact'] .stack, .dash[data-density='compact'] .stack-lg { gap: 8px; }
 .dash[data-density='compact'] .card { padding: 10px; gap: 6px; }
 
+/* Soft purple and gold blobs behind the room */
+.dash { position: relative; isolation: isolate; overflow-x: hidden; }
+.dash::before, .dash::after { content: ''; position: absolute; z-index: -1; border-radius: 50%; pointer-events: none; }
+.dash::before { width: 62vw; height: 42vw; left: -16vw; top: 18vh; background: light-dark(rgba(213, 197, 251, 0.75), rgba(91, 55, 170, 0.35)); }
+.dash::after { width: 54vw; height: 38vw; right: -14vw; top: 34vh; background: light-dark(rgba(255, 224, 140, 0.7), rgba(255, 190, 40, 0.18)); }
+
 .dash.page { max-width: none; margin: 0; padding: 20px clamp(12px, 3vw, 32px) 64px; }
 .dash .shell { max-width: 1320px; margin: 0 auto; }
 
@@ -66,7 +72,7 @@
   font: inherit;
   cursor: pointer;
   text-align: center;
-  box-shadow: 0 0 0 4px var(--surface);
+  box-shadow: 0 0 0 6px var(--surface); /* white ring around each PC */
 }
 .dash .pc svg { position: absolute; inset: 0; fill: none; }
 .dash .pc-track { stroke: var(--tr); }
@@ -100,7 +106,7 @@
 
 /* Floor plan on the Computers tab: four across, front of the room on top */
 .dash .floor-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 20px; align-items: start; }
-.dash .floor-panel { background: var(--surface); border-radius: 8px; padding: 18px 24px 28px; }
+.dash .floor-panel { padding: 8px 4px 20px; } /* the room sits straight on the background */
 .dash .floor-front { display: grid; place-items: center; margin-bottom: 24px; }
 .dash .floor-front span {
   width: 60%;
@@ -218,3 +224,10 @@
 .dash .modal { animation: modal-in 0.16s ease-out; }
 @keyframes pc-ring { from { box-shadow: 0 0 0 4px var(--fg); } to { box-shadow: 0 0 0 14px transparent; } }
 .dash .pc-changed { animation: pc-ring 1.1s ease-out 2; }
+
+/* Help desk: the floor plan sits at the top of the side column */
+.dash .desk-floor { padding: 4px 0 8px; }
+.dash .desk-floor .floor { gap: 20px 8px; }
+.dash .desk-floor .pc-name { font-size: 0.78rem; }
+.dash .desk-floor .pc-sub { font-size: 0.65rem; }
+.dash .desk { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); }
