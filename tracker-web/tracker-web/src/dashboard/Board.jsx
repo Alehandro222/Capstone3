@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import PeripheralList from '../components/PeripheralList.jsx'
 import { STATUS_LABEL, STATUS_TONE, ago, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './format.js'
+import PcToken from './PcToken.jsx'
 import { Badge } from './ui.jsx'
 
 const WARN_MS = 10 * 60 * 1000 // the last 10 minutes: when visitors may extend
@@ -20,10 +21,10 @@ const matches = (filter, status) =>
 
 // Live board: every PC, who is on it, and how long they have left.
 //   on.* are the card actions, each given the computer (and its session).
-export default function Board({ computers, sessions, pendingPasses, waitlist, on }) {
+export default function Board({ computers, sessions, pendingPasses, waitlist, on, selectedId, onSelect }) {
   const now = useNow()
   const [filter, setFilter] = useState('all')
-  const shown = computers.filter((c) => matches(filter, c.status))
+  const selected = computers.find((c) => c.id === selectedId) ?? computers[0]
   const free = computers.filter((c) => c.status === 'Available').length
   const held = heldForWaitlist(waitlist, now)
   const allHeld = held.length > 0 && held.length >= free
@@ -53,18 +54,36 @@ export default function Board({ computers, sessions, pendingPasses, waitlist, on
         </div>
       )}
 
-      <div className="grid">
-        {shown.map((computer) => (
-          <ComputerCard
-            key={computer.id}
-            computer={computer}
-            session={sessions.find((s) => s.computerId === computer.id)}
-            pass={pendingPasses.find((p) => p.computerId === computer.id)}
-            now={now}
-            held={allHeld}
-            on={on}
-          />
-        ))}
+      {/* The room as it is laid out: four PCs across, the front of the room at the top. */}
+      <div className="floor-wrap">
+        <section className="floor-panel" aria-label="Floor plan">
+          <div className="floor-front"><span>Front of the room</span></div>
+          <div className="floor">
+            {computers.map((c) => (
+              <PcToken
+                key={c.id}
+                computer={c}
+                session={sessions.find((s) => s.computerId === c.id)}
+                now={now}
+                dim={!matches(filter, c.status)}
+                selected={selected?.id === c.id}
+                onClick={() => onSelect(c.id)}
+              />
+            ))}
+          </div>
+        </section>
+        {selected && (
+          <div className="floor-card">
+            <ComputerCard
+              computer={selected}
+              session={sessions.find((s) => s.computerId === selected.id)}
+              pass={pendingPasses.find((p) => p.computerId === selected.id)}
+              now={now}
+              held={allHeld}
+              on={on}
+            />
+          </div>
+        )}
       </div>
     </section>
   )

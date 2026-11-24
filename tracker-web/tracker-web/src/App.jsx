@@ -5,6 +5,7 @@ import HelpRequests from './components/HelpRequests.jsx'
 import WalkInDialog from './components/WalkInDialog.jsx'
 import AuditLog from './dashboard/AuditLog.jsx'
 import Board from './dashboard/Board.jsx'
+import PcToken from './dashboard/PcToken.jsx'
 import ComputerDetails from './dashboard/ComputerDetails.jsx'
 import Reports from './dashboard/Reports.jsx'
 import HelpDesk from './dashboard/HelpDesk.jsx'
@@ -13,7 +14,7 @@ import StaffAccounts from './dashboard/StaffAccounts.jsx'
 import VisitorLog from './dashboard/VisitorLog.jsx'
 import Waitlist from './dashboard/Waitlist.jsx'
 import { ConfirmDialog, FormDialog } from './dashboard/ui.jsx'
-import { STATUS_LABEL, STATUS_TONE, clock, countdown, heldForWaitlist, heldNames, msUntil, useNow } from './dashboard/format.js'
+import { STATUS_LABEL, clock, heldForWaitlist, heldNames, useNow } from './dashboard/format.js'
 import { TIME_ZONE, serverNow } from './time.js'
 import '@fontsource-variable/figtree'
 import { AttentionTray, CommandPalette, buildAlerts, useChime, usePrefs } from './dashboard/extras.jsx'
@@ -51,6 +52,7 @@ export default function App({ me, onSignOut }) {
   const [refreshKey, setRefreshKey] = useState(0) // bumped after every action, for screens that load their own data
   const [dialog, setDialog] = useState(null)
   const [palette, setPalette] = useState(false)
+  const [selectedPc, setSelectedPc] = useState(null) // the PC picked on the floor plan
   const prefs = usePrefs()
   const [toast, setToast] = useState(null) // { text, bad }
   const toastTimer = useRef()
@@ -177,11 +179,6 @@ export default function App({ me, onSignOut }) {
         </div>
       </header>
 
-      {loaded && (
-        <LiveStrip computers={computers} sessions={sessions} onPick={() => setTab('board')}
-          summary={`${count('Available')} free, ${count('InUse')} in use, ${count('Reserved')} reserved, ${count('Maintenance', 'Offline')} unavailable`} />
-      )}
-
       <div className="layout">
       <nav className="nav" aria-label="Sections">
         {TABS.filter((t) => !t.admin || isAdmin).map((t) => (
@@ -196,6 +193,11 @@ export default function App({ me, onSignOut }) {
           </button>
         ))}
       </nav>
+
+      {loaded && tab !== 'board' && (
+        <LiveStrip computers={computers} sessions={sessions} onPick={(id) => { setSelectedPc(id); setTab('board') }}
+          summary={`${count('Available')} free, ${count('InUse')} in use, ${count('Reserved')} reserved, ${count('Maintenance', 'Offline')} unavailable`} />
+      )}
 
       <main id="main" tabIndex={-1}>
       {error && <div className="banner" role="alert">{error}</div>}
@@ -220,7 +222,8 @@ export default function App({ me, onSignOut }) {
               </button>
             </div>
           )}
-          <Board computers={computers} sessions={sessions} pendingPasses={passes} waitlist={waitlist} on={boardActions} />
+          <Board computers={computers} sessions={sessions} pendingPasses={passes} waitlist={waitlist} on={boardActions}
+            selectedId={selectedPc} onSelect={setSelectedPc} />
         </>
       )}
       {loaded && tab === 'waitlist' && <Waitlist waitlist={waitlist} computers={computers} />}
@@ -415,20 +418,11 @@ function LiveStrip({ computers, sessions, onPick, summary }) {
   return (
     <section aria-label={`Computers: ${summary}`}>
     <ul className="strip">
-      {computers.map((c) => {
-        const s = sessions.find((x) => x.computerId === c.id)
-        const endsAt = s?.scheduledEndAt ?? c.sessionEndsAt
-        const left = c.status === 'InUse' && endsAt ? msUntil(endsAt, now) : null
-        return (
-          <li key={c.id}>
-            <button className={`strip-tile strip-${STATUS_TONE[c.status]}${left !== null && left <= 600000 ? ' strip-warn' : ''}${changed.has(c.id) ? ' strip-changed' : ''}`}
-              onClick={onPick}>
-              <span className="strip-name">{c.name}</span>
-              <span className="strip-state">{left !== null ? countdown(left) : STATUS_LABEL[c.status] ?? c.status}</span>
-            </button>
-          </li>
-        )
-      })}
+      {computers.map((c) => (
+        <li key={c.id}>
+          <PcToken computer={c} session={sessions.find((x) => x.computerId === c.id)} now={now} size={46} compact changed={changed.has(c.id)} onClick={() => onPick(c.id)} />
+        </li>
+      ))}
     </ul>
     </section>
   )
